@@ -1,4 +1,4 @@
-# 60 Questions and Answers - .Net Senior Developer/Engineer
+# 60 Questions and Answers - .Net/C# Developer/Engineer
 
 **Question**: What is the purpose of the partial keyword in C#?
 
@@ -356,5 +356,4 @@
 
 **Question**: What is the purpose of ConfigureAwait in async methods?
 
-**Answer**: It determines whether to suspend the continuation on the current synchronization 
-context. Use it when you want to avoid deadlocks (e.g., in UI apps) or when the task will be executed on a different thread.
+**Answer**: It determines whether to suspend the continuation on the current synchronization context. Use it when you want to avoid deadlocks (e.g., in UI apps) or when the task will be executed on a different thread.
