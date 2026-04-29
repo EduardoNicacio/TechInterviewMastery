@@ -68,7 +68,7 @@
 
 **Question**: Explain the concept of covariance and contravariance in C# generic types.
 
-**Answer**: Covariance allows a derived type to be used where a base type is expected (e.g., List<Derived>). Contravariance applies to method parameters, allowing a more specific type to replace a general one (e.g., Func<Derived, void> vs Func<Base, void>), ensuring type safety in generic delegates.
+**Answer**: Covariance allows a derived type to be used where a base type is expected (e.g., `List<Derived>`). Contravariance applies to method parameters, allowing a more specific type to replace a general one (e.g., Func<Derived, void> vs Func<Base, void>), ensuring type safety in generic delegates.
 
 ***
 
@@ -84,9 +84,9 @@
 
 ***
 
-**Question**: What is the difference between Span<T> and Memory<T>?
+**Question**: What is the difference between `Span<T>` and `Memory<T>`?
 
-**Answer**: Both represent a contiguous sequence of bytes without copying data. Span<T> is stack-allocated and doesn't require bounds checking if passed correctly, while Memory<T> includes length information and can be used with unsafe code or to capture spans from arrays that might grow/shrink.
+**Answer**: Both represent a contiguous sequence of bytes without copying data. `Span<T>` is stack-allocated and doesn't require bounds checking if passed correctly, while `Memory<T>` includes length information and can be used with unsafe code or to capture spans from arrays that might grow/shrink.
 
 ***
 
@@ -162,7 +162,7 @@
 
 ***
 
-**Question**: What is the difference between List<T> and Array in terms of performance?
+**Question**: What is the difference between `List<T>` and Array in terms of performance?
 
 **Answer**: Arrays have better cache locality but fixed size; Lists grow dynamically with overhead. Use arrays for known-size collections to improve performance, or Lists when flexibility is needed.
 
@@ -186,9 +186,9 @@
 
 ***
 
-**Question**: What is the difference between IEnumerable<T> and ICollection<T>?
+**Question**: What is the difference between `IEnumerable<T>` and `ICollection<T>`?
 
-**Answer**: ICollection<T> adds methods like Add, Remove, and Count that allow modification of the collection, while IEnumerable<T> only supports iteration. Use ICollection when you need to modify the list frequently.
+**Answer**: `ICollection<T>` adds methods like Add, Remove, and Count that allow modification of the collection, while `IEnumerable<T>` only supports iteration. Use ICollection when you need to modify the list frequently.
 
 ***
 
@@ -218,7 +218,7 @@
 
 **Question**: How do you implement a Singleton pattern safely in .NET?
 
-**Answer**: Use lazy initialization with Lazy<T> or static field locking (e.g., static readonly). Avoid thread-unsafe singletons by ensuring the instance creation is atomic and protected against race conditions.
+**Answer**: Use lazy initialization with `Lazy<T>` or static field locking (e.g., static readonly). Avoid thread-unsafe singletons by ensuring the instance creation is atomic and protected against race conditions.
 
 ***
 
@@ -278,7 +278,7 @@
 
 **Question**: How do you implement the Observer Pattern in C#?
 
-**Answer**: Use event-driven programming with Action<T> delegates or IEventEmitter. A publisher emits events, and subscribers subscribe to receive updates without knowing each other's existence.
+**Answer**: Use event-driven programming with `Action<T>` delegates or IEventEmitter. A publisher emits events, and subscribers subscribe to receive updates without knowing each other's existence.
 
 ***
 
@@ -338,7 +338,7 @@
 
 **Question**: How do you implement the Observer Pattern with C# Events?
 
-**Answer**: Use Action<T> delegates or IEventEmitter interfaces. A publisher emits events, and subscribers subscribe to receive updates without knowing each other's existence.
+**Answer**: Use `Action<T>` delegates or IEventEmitter interfaces. A publisher emits events, and subscribers subscribe to receive updates without knowing each other's existence.
 
 ***
 
