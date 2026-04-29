@@ -47,6 +47,8 @@ TechInterviewMastery/
     │   └── 01_Python_Mastery.md
     ├── SQL/
     │   └── 01_SQL_Advanced.md
+    ├── Technical_Debt/
+    │   └── 01_Technical_Debt.md
     ├── TypeScript/
     │   └── 01_TS_Typescript.md
     ├── Generative_AI/
