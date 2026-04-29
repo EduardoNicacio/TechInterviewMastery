@@ -336,11 +336,13 @@ public class StringFactory : IFactory<string>
 ---
 
 **Question**: What is the impact of Task vs ValueTask on memory allocation?
+
 **Answer**: `Task` always allocates a heap object for the task state. `ValueTask` avoids this if completed synchronously, but requires careful handling to avoid confusion in callers expecting a `Task`.
 
 ---
 
 **Question**: How do you implement the Repository Pattern with Entity Framework Core?
+
 **Answer**: Create an interface (e.g., `IUserRepository`) and a concrete class implementing it using EF Core’s `DbContext`. Inject this into services to abstract database logic from business rules.
 
 ```csharp
