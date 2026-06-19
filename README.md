@@ -10,7 +10,7 @@
 
 This repository serves as a curated collection of technical interview questions and answers designed to prepare developers for mid-to-senior level roles. The content covers core programming concepts, system architecture, database management, modern AI frameworks, and specific language nuances.
 
-**Total Questions:** 520+
+**Total Questions:** 550+
 **Target Audience:** Senior Developers, Tech Leads, Engineering Managers.
 
 ## 📖 Table of Contents
@@ -18,14 +18,15 @@ This repository serves as a curated collection of technical interview questions 
 | Technology | Question Count | Description |
 | :--- | :---: | :--- |
 | **Architecture** | 50 | Clean Architecture, Vertical Slices, Microservices, Domain-Driven Design (DDD). |
-| **.NET / C#** | 60 | Runtime, LINQ, Async/Await, Memory Management, OOP Principles. |
-| **Java** | 100 | JVM internals, Collections Framework, Concurrency, Spring Boot patterns. |
-| **JavaScript** | 100 | ES6+, Node.js internals, V8 engine, Event Loop, Performance optimization. |
+| **.NET / C#** | 56 | Runtime, LINQ, Async/Await, Memory Management, OOP Principles. |
+| **Java** | 58 | JVM internals, Collections Framework, Concurrency, Spring Boot patterns. |
+| **JavaScript** | 50 | ES6+, Node.js internals, V8 engine, Event Loop, Performance optimization. |
 | **Python** | 50 | GIL, Decorators, Generators, Asyncio, Data Structures & Algorithms. |
-| **SQL** | 60 | Joins, Indexing, ACID properties, Query Optimization, NoSQL basics. |
-| **TypeScript** | 60 | Type System, Generics, Transpilation, React Native integration. |
+| **SQL** | 50 | Joins, Indexing, ACID properties, Query Optimization, NoSQL basics. |
+| **TypeScript** | 49 | Type System, Generics, Transpilation, React Native integration. |
 | **Generative AI** | 50 | LLMs, Transformers, Prompt Engineering, RAG, Fine-tuning. |
-| **Agentic AI** | 50 | Agent Orchestration, Tool Use, Memory Management in Agents. |
+| **Agentic AI** | 51 | Agent Orchestration, Tool Use, Memory Management in Agents. |
+| **Technical Debt** | 36 | Refactoring, Code Smells, Migration Strategies, Maintainability. |
 
 ## 📂 Directory Structure
 
