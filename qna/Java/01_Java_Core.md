@@ -195,8 +195,6 @@ public void divide() {
 
 ---
 
----
-
 **Question**: How do Generics work in Java and what is type erasure?
 
 **Answer**: Generics enable type-safe collections by parameterizing types. Due to type erasure, generic type information is removed at runtime - the compiler replaces type parameters with their leftmost bound (or `Object` if unbounded). This means `List<String>` and `List<Integer>` are the same `List` at runtime. Type erasure ensures backward compatibility with pre-generics code but prevents runtime type queries like `new T()` or `instanceof T`.
@@ -1023,7 +1021,7 @@ tasks.named('test') {
 
 ```java
 ExecutorService executor = Executors.newFixedThreadPool(10);
-private static final Logger log = LoggerFactory.getLogger(MyClass.class);
+var log = LoggerFactory.getLogger("CompletableFutureDemo");
 
 CompletableFuture<Double> userFuture = CompletableFuture.supplyAsync(() ->
     fetchUser(), executor);
@@ -1039,8 +1037,9 @@ CompletableFuture<Double> combined = userFuture
         return 0.0;
     });
 
-// Wait for multiple independent tasks
-List<Task> tasks = List.of(task1, task2, task3);
+// Wait for multiple independent tasks (example tasks)
+class Task { String process() { return "done"; } }
+List<Task> tasks = List.of(new Task(), new Task(), new Task());
 List<CompletableFuture<String>> futures = tasks.stream()
     .map(t -> CompletableFuture.supplyAsync(t::process, executor))
     .toList();
@@ -1172,18 +1171,29 @@ map.merge("key", 1, Integer::sum);
 **Answer**: Strong references (normal references) prevent GC of the referent. `SoftReference` is cleared by GC only when memory is low - useful for caches. `WeakReference` is cleared at the next GC cycle - used by `WeakHashMap`. `PhantomReference` cannot be accessed after GC (no `get()` method); it's used for post-mortem cleanup (e.g., direct buffer deallocation). Reference queues (`ReferenceQueue`) notify when references are enqueued.
 
 ```java
-// Soft reference - cache
+// Soft reference — cache
 SoftReference<Cache> cache = new SoftReference<>(new Cache());
 Cache c = cache.get(); // null if GC cleared it
 
-// Weak reference - WeakHashMap uses WeakReference for keys
+// Weak reference — WeakHashMap uses WeakReference for keys
 WeakReference<Object> weak = new WeakReference<>(new Object());
 System.out.println(weak.get()); // non-null
 System.gc();
 System.out.println(weak.get()); // likely null
 
-// Phantom reference - cleanup
+// Phantom reference — cleanup via ReferenceQueue
 ReferenceQueue<Object> queue = new ReferenceQueue<>();
 PhantomReference<Object> phantom = new PhantomReference<>(new Object(), queue);
 // phantom.get() always returns null
+
+// Background thread polls the queue to perform cleanup
+new Thread(() -> {
+    try {
+        Reference<?> ref = queue.remove(); // blocks until available
+        // Perform cleanup (e.g., free native memory)
+        System.out.println("Referent garbage collected");
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+    }
+}).start();
 ```
