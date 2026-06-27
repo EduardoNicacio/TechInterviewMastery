@@ -98,7 +98,7 @@ function area(shape: Shape): number {
 **Answer**: Type guards are expressions that perform runtime checks to narrow a variable's type. `typeof` works for primitives, `instanceof` for class instances, and custom type guards are user-defined functions that return a type predicate (`x is T`).
 
 ```typescript
-// typeof type guard
+// Custom type guard using typeof
 function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
@@ -285,7 +285,7 @@ type FirstArg<T> = T extends (first: infer F, ...rest: unknown[]) => unknown ? F
 
 **Question**: Explain the difference between `unknown`, `any`, and `never`.
 
-**Answer**: `any` disables type checking entirely—use sparingly. `unknown` is the type-safe counterpart: you must narrow it before use. `never` represents values that never occur (unreachable code) and is the bottom type assignable to everything but nothing is assignable to it.
+**Answer**: `any` disables type checking entirely-use sparingly. `unknown` is the type-safe counterpart: you must narrow it before use. `never` represents values that never occur (unreachable code) and is the bottom type assignable to everything but nothing is assignable to it.
 
 ```typescript
 let anyVal: any = 42;
@@ -306,7 +306,7 @@ function throwError(): never {
 
 **Question**: What is the difference between `void` and `undefined`?
 
-**Answer**: `void` is the return type of functions that don't return a value. `undefined` is an actual value. In JavaScript, a function with no return statement returns `undefined`, but in TypeScript, `void` is assignable from `undefined` only when `strictNullChecks` is off. `void` is preferred for callback return types to allow both `undefined` and implicit returns.
+**Answer**: `void` is the return type of functions that don't return a value. `undefined` is an actual value. In JavaScript, a function with no return statement returns `undefined`. In TypeScript, `undefined` is assignable to `void` regardless of `strictNullChecks` - `void` means "the caller should not depend on a return value." `void` is preferred for callback return types to allow both `undefined` and implicit returns.
 
 ```typescript
 function logMessage(msg: string): void {
@@ -344,7 +344,7 @@ const arr: readonly number[] = [1, 2, 3];
 
 **Question**: What is `as const` and how do const assertions work?
 
-**Answer**: `as const` tells TypeScript to infer the narrowest possible type for a value—literal types instead of widened types, and readonly tuples instead of arrays. It's essential for creating immutable constants and discriminated unions.
+**Answer**: `as const` tells TypeScript to infer the narrowest possible type for a value-literal types instead of widened types, and readonly tuples instead of arrays. It's essential for creating immutable constants and discriminated unions.
 
 ```typescript
 const colors = ['red', 'green', 'blue'] as const;
@@ -442,7 +442,7 @@ class Dog extends Animal {
 
 **Question**: Explain access modifiers: `public`, `private`, `protected`, and `readonly`.
 
-**Answer**: `public` (default) is accessible everywhere. `private` is accessible only within the declaring class. `protected` is accessible within the class and its subclasses. `readonly` prevents reassignment after initialization. TypeScript's `private` uses a soft compile-time check—use `#` for true JavaScript private fields.
+**Answer**: `public` (default) is accessible everywhere. `private` is accessible only within the declaring class. `protected` is accessible within the class and its subclasses. `readonly` prevents reassignment after initialization. TypeScript's `private` uses a soft compile-time check-use `#` for true JavaScript private fields.
 
 ```typescript
 class Person {
@@ -464,7 +464,7 @@ class Person {
 
 **Question**: What are decorators and what types of decorators exist?
 
-**Answer**: Decorators are functions that modify classes, methods, properties, or parameters. They use the `@expression` syntax and are commonly used for metadata injection, logging, and dependency injection. TypeScript supports class, method, accessor, property, and parameter decorators.
+**Answer**: Decorators are functions that modify classes, methods, properties, or parameters. They use the `@expression` syntax and are commonly used for metadata injection, logging, and dependency injection. TypeScript supports class, method, accessor, property, and parameter decorators. Note: the example below uses the legacy decorator format which requires `"experimentalDecorators": true` in `tsconfig.json`. TypeScript 5.0 introduced TC39 standard decorators with a different signature (a single context object).
 
 ```typescript
 function Log(target: any, propertyKey: string, descriptor: PropertyDescriptor): void {
@@ -586,7 +586,7 @@ import { StringValidator } from './validators';
 
 **Question**: Explain path mapping and module resolution strategies in TypeScript.
 
-**Answer**: Path mapping in `tsconfig.json` allows defining custom module aliases via the `paths` option relative to `baseUrl`. TypeScript supports two resolution strategies: `classic` (legacy, for AMD) and `node` (default, mimics Node.js resolution with `.ts`/`.d.ts` extensions).
+**Answer**: Path mapping in `tsconfig.json` allows defining custom module aliases via the `paths` option relative to `baseUrl`. TypeScript supports four resolution strategies: `classic` (legacy, for AMD), `node` (default, legacy CommonJS-style), `node16` (supports Node.js 16+ with ESM/CJS dual-package resolution), and `nodenext` (follows the latest Node.js resolution algorithm). `node16` and `nodenext` are recommended for modern Node.js ESM projects.
 
 ```json
 {
@@ -730,7 +730,7 @@ getUser(uid); // ✅
 
 **Question**: What is `NoUncheckedIndexedAccess`?
 
-**Answer**: `NoUncheckedIndexedAccess` is a `tsconfig.json` option that adds `undefined` to every indexed access. This forces you to handle the case where an index might not exist, preventing runtime "undefined is not a function" errors.
+**Answer**: `NoUncheckedIndexedAccess` is a `tsconfig.json` option that adds `undefined` to every indexed access. This forces you to handle the case where an index might not exist, preventing runtime errors like "Cannot read properties of undefined".
 
 ```json
 {
@@ -824,7 +824,7 @@ type StatusUnion = 'active' | 'inactive';
 
 **Question**: How do you configure strict mode in TypeScript?
 
-**Answer**: Set `"strict": true` in `tsconfig.json`. This enables a suite of stricter checks: `strictNullChecks`, `noImplicitAny`, `strictFunctionTypes`, `strictBindCallApply`, `strictPropertyInitialization`, `noImplicitThis`, and `alwaysStrict`. For stricter type safety, also consider `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `noUnusedLocals`.
+**Answer**: Set `"strict": true` in `tsconfig.json`. This enables a suite of stricter checks: `strictNullChecks`, `noImplicitAny`, `strictFunctionTypes`, `strictBindCallApply`, `strictPropertyInitialization`, `noImplicitThis`, `alwaysStrict`, and `useUnknownInCatchVariables` (TypeScript 4.4+). For stricter type safety, also consider `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `noUnusedLocals`.
 
 ```json
 {
@@ -873,7 +873,7 @@ emitter.on('userLoggedIn', (payload) => console.log(payload.userId));
 
 **Question**: How do you implement a builder pattern with TypeScript types?
 
-**Answer**: Use a class with method chaining where each method returns `this`. For stricter type safety, use a generic type parameter with a "state" union that tracks which required fields have been set, preventing incomplete builds at compile time.
+**Answer**: Use a class with method chaining where each method returns `this`, allowing a fluent interface. The builder accumulates configuration and provides a `build()` method that returns the final object. This pattern separates construction logic from the object itself.
 
 ```typescript
 class PizzaBuilder {
@@ -917,9 +917,9 @@ class QueryBuilder<T extends Record<string, unknown>> {
     return this;
   }
 
-  execute(): Pick<T, typeof this.selects[number]> {
+  execute(): T {
     // implementation
-    return {} as any;
+    return {} as T;
   }
 }
 
@@ -928,7 +928,7 @@ const query = new QueryBuilder<User>()
   .select('id')
   .select('name')
   .execute();
-// query has type Pick<User, 'id' | 'name'>
+// query has type User (runtime array state cannot be tracked at the type level)
 ```
 
 ---

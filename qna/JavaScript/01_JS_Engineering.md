@@ -44,7 +44,7 @@ console.log(counter()); // 2
 
 **Question**: What is the difference between `call()`, `apply()`, and `bind()`?
 
-**Answer**: `call(fn, arg1, arg2)` invokes a function with a given `this` and comma-separated arguments. `apply(fn, [args])` does the same with an argument array. `bind(fn)` returns a new function with a permanently bound `this` without immediate invocation.
+**Answer**: `fn.call(thisArg, arg1, arg2)` invokes `fn` with a given `this` context and comma-separated arguments. `fn.apply(thisArg, [args])` does the same with an argument array. `fn.bind(thisArg)` returns a new function with a permanently bound `this` without immediate invocation.
 
 ```javascript
 function greet(greeting) { return `${greeting}, ${this.name}`; }
@@ -236,7 +236,8 @@ console.log(Object.keys(obj)); // [] - Symbol keys are hidden
 const map = new Map();
 map.set({}, 'value');
 const wm = new WeakMap();
-wm.set(obj, 'value'); // obj can be GC'd
+const obj = {};
+wm.set(obj, 'value'); // obj can be GC'd after the reference is removed
 ```
 
 ---
@@ -264,7 +265,7 @@ const obj = { a: 1, b: { c: 2 } };
 const deep = structuredClone(obj);
 const shallow = { ...obj };
 shallow.b.c = 99;
-console.log(obj.b.c); // 99 with shallow, 2 with deep
+console.log(obj.b.c); // 99 (shallow copy shares nested refs, so obj.b.c was mutated)
 ```
 
 ---
@@ -344,7 +345,7 @@ console.log(Boolean('')); // false
 
 **Question**: What is the difference between `==` and `===`?
 
-**Answer**: `==` performs type coercion before comparison, while `===` (strict equality) checks both value and type without coercion. Always prefer `===` except in rare cases where you intentionally leverage coercion (e.g., checking `null ?? undefined` with `==`).
+**Answer**: `==` performs type coercion before comparison, while `===` (strict equality) checks both value and type without coercion. Always prefer `===` except in rare cases where you intentionally leverage coercion (e.g., checking `null == undefined` with `==`).
 
 ```javascript
 console.log(1 == '1');  // true (coercion)
@@ -499,9 +500,9 @@ button.addEventListener('click', async () => {
 
 ---
 
-**Question**: What are Core Web Vitals (LCP, FID, CLS)?
+**Question**: What are Core Web Vitals (LCP, INP, CLS)?
 
-**Answer**: Largest Contentful Paint (LCP) measures loading performance (visible main content). First Input Delay (FID) measures interactivity (response to first user input). Cumulative Layout Shift (CLS) measures visual stability (unexpected layout shifts). These metrics are Google's ranking signals for user experience.
+**Answer**: Largest Contentful Paint (LCP) measures loading performance (visible main content). Interaction to Next Paint (INP) measures responsiveness (latency of all interactions throughout the page lifecycle, reporting the worst-case). Cumulative Layout Shift (CLS) measures visual stability (unexpected layout shifts). These metrics are Google's ranking signals for user experience.
 
 ---
 

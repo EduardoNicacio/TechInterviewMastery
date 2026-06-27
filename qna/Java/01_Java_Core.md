@@ -79,14 +79,14 @@ public class GCDemo {
 
 ---
 
-**Question**: Describe the Java Memory Model — Heap, Stack, and Metaspace.
+**Question**: Describe the Java Memory Model - Heap, Stack, and Metaspace.
 
 **Answer**: The Heap stores all object instances and arrays; it is shared across threads and managed by the GC. The Stack stores local variables, partial results, and method call frames (one frame per method call); each thread has its own stack. Metaspace (introduced in Java 8, replacing PermGen) stores class metadata; it grows dynamically in native memory and is not subject to GC.
 
 ```java
 public class MemoryDemo {
     int instanceVar; // Heap
-    static int classVar; // Metaspace (class data)
+    static int classVar; // Heap (part of java.lang.Class mirror object)
     public void method() {
         int localVar = 42; // Stack
     }
@@ -118,7 +118,7 @@ public class StringPoolDemo {
 
 **Question**: Explain the `equals()` and `hashCode()` contract.
 
-**Answer**: The contract states: if two objects are equal according to `equals()`, they must have the same `hashCode()`. The reverse is not required (different objects can have the same hash — hash collision). Breaking this contract means hash-based collections (HashMap, HashSet) will not function correctly — objects that are equal may end up in different buckets, causing lookups to fail.
+**Answer**: The contract states: if two objects are equal according to `equals()`, they must have the same `hashCode()`. The reverse is not required (different objects can have the same hash - hash collision). Breaking this contract means hash-based collections (HashMap, HashSet) will not function correctly - objects that are equal may end up in different buckets, causing lookups to fail.
 
 ```java
 public class User {
@@ -127,11 +127,11 @@ public class User {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof User)) return false;
-        return email.equals(((User) o).email);
+        return Objects.equals(email, ((User) o).email);
     }
     @Override
     public int hashCode() {
-        return email.hashCode(); // consistent with equals
+        return Objects.hashCode(email); // consistent with equals, null-safe
     }
 }
 ```
@@ -140,7 +140,7 @@ public class User {
 
 **Question**: What is the difference between `==` and `equals()` in Java?
 
-**Answer**: `==` compares reference equality — it checks whether two references point to the same memory location. `equals()` compares logical/structural equality (object content) and can be overridden by user classes. For primitives, `==` compares values. For String comparison, always use `equals()` unless you explicitly want to check reference identity.
+**Answer**: `==` compares reference equality - it checks whether two references point to the same memory location. `equals()` compares logical/structural equality (object content) and can be overridden by user classes. For primitives, `==` compares values. For String comparison, always use `equals()` unless you explicitly want to check reference identity.
 
 ```java
 String a = new String("hello");
@@ -153,7 +153,7 @@ System.out.println(a.equals(b)); // true (same value)
 
 **Question**: Explain `final`, `finally`, and `finalize()` in Java.
 
-**Answer**: `final` is a keyword used for classes (cannot be subclassed), methods (cannot be overridden), and variables (cannot be reassigned). `finally` is a block used with try-catch that always executes (except if JVM exits abruptly), typically for cleanup. `finalize()` is a method called by GC before reclaiming an object's memory — it is deprecated since Java 9 and should never be relied upon for resource cleanup.
+**Answer**: `final` is a keyword used for classes (cannot be subclassed), methods (cannot be overridden), and variables (cannot be reassigned). `finally` is a block used with try-catch that always executes (except if JVM exits abruptly), typically for cleanup. `finalize()` is a method called by GC before reclaiming an object's memory - it is deprecated since Java 9 and should never be relied upon for resource cleanup.
 
 ```java
 public class FinalDemo {
@@ -168,9 +168,9 @@ public class FinalDemo {
         }
     }
 
-    @Override @Deprecated(since = "9")
+    @Override @Deprecated(since = "9", forRemoval = true)
     protected void finalize() throws Throwable {
-        // Avoid — unpredictable and unreliable
+        // Avoid - unpredictable and unreliable
     }
 }
 ```
@@ -182,12 +182,12 @@ public class FinalDemo {
 **Answer**: Checked exceptions (subclasses of `Exception` but not `RuntimeException`) must be declared in the method signature using `throws` or caught with try-catch; the compiler enforces this. Unchecked exceptions (`RuntimeException` and `Error`) do not require explicit handling. Checked exceptions represent recoverable conditions (e.g., `IOException`), while unchecked represent programming bugs (e.g., `NullPointerException`).
 
 ```java
-// Checked — must handle or declare
+// Checked - must handle or declare
 public void readFile() throws IOException {
     throw new IOException("File not found");
 }
 
-// Unchecked — no declaration needed
+// Unchecked - no declaration needed
 public void divide() {
     throw new ArithmeticException("/ by zero");
 }
@@ -195,29 +195,11 @@ public void divide() {
 
 ---
 
-**Question**: What is try-with-resources and how does it work?
-
-**Answer**: Introduced in Java 7, try-with-resources automatically closes resources that implement `AutoCloseable` (or `Closeable`). Resources are declared in the try header and are closed in reverse order after the try block completes, even if an exception occurs. This eliminates the need for explicit `finally` blocks and prevents resource leaks.
-
-```java
-public class TryWithResourcesDemo {
-    public static void main(String[] args) {
-        try (BufferedReader br = new BufferedReader(new FileReader("test.txt"));
-             BufferedWriter bw = new BufferedWriter(new FileWriter("out.txt"))) {
-            String line = br.readLine();
-            bw.write(line);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-}
-```
-
 ---
 
 **Question**: How do Generics work in Java and what is type erasure?
 
-**Answer**: Generics enable type-safe collections by parameterizing types. Due to type erasure, generic type information is removed at runtime — the compiler replaces type parameters with their leftmost bound (or `Object` if unbounded). This means `List<String>` and `List<Integer>` are the same `List` at runtime. Type erasure ensures backward compatibility with pre-generics code but prevents runtime type queries like `new T()` or `instanceof T`.
+**Answer**: Generics enable type-safe collections by parameterizing types. Due to type erasure, generic type information is removed at runtime - the compiler replaces type parameters with their leftmost bound (or `Object` if unbounded). This means `List<String>` and `List<Integer>` are the same `List` at runtime. Type erasure ensures backward compatibility with pre-generics code but prevents runtime type queries like `new T()` or `instanceof T`.
 
 ```java
 public class GenericDemo<T> {
@@ -236,21 +218,21 @@ public class GenericDemo<T> {
 
 **Question**: Explain wildcards and bounds in Java Generics.
 
-**Answer**: Wildcards (`?`) represent unknown types. Upper-bounded wildcards (`? extends T`) allow reading items of type T (producer — covariance). Lower-bounded wildcards (`? super T`) allow writing items of type T (consumer — contravariance). Unbounded wildcards (`?`) work with any type. The PECS rule (Producer Extends, Consumer Super) guides correct usage.
+**Answer**: Wildcards (`?`) represent unknown types. Upper-bounded wildcards (`? extends T`) allow reading items of type T (producer - covariance). Lower-bounded wildcards (`? super T`) allow writing items of type T (consumer - contravariance). Unbounded wildcards (`?`) work with any type. The PECS rule (Producer Extends, Consumer Super) guides correct usage.
 
 ```java
 public class WildcardDemo {
-    // Producer — read items as Number
+    // Producer - read items as Number
     public double sum(List<? extends Number> numbers) {
-        // numbers.add(42); // Compile error — cannot add
+        // numbers.add(42); // Compile error - cannot add
         return numbers.stream().mapToDouble(Number::doubleValue).sum();
     }
 
-    // Consumer — add Integer items
+    // Consumer - add Integer items
     public void addNumbers(List<? super Integer> list) {
         list.add(1);  // OK
         list.add(2);  // OK
-        // Integer i = list.get(0); // Compile error — ? super Integer
+        // Integer i = list.get(0); // Compile error - ? super Integer
         Object o = list.get(0); // OK
     }
 }
@@ -269,16 +251,16 @@ nums[0] = 3.14; // ArrayStoreException at runtime
 
 // Generic invariance (compile-time safety)
 // List<Number> list = new ArrayList<Integer>(); // Compile error
-List<? extends Number> list = new ArrayList<Integer>(); // OK — covariance
-// list.add(1); // Compile error — can't add
-Number n = list.get(0); // OK — can read
+List<? extends Number> list = new ArrayList<Integer>(); // OK - covariance
+// list.add(1); // Compile error - can't add
+Number n = list.get(0); // OK - can read
 ```
 
 ---
 
 **Question**: Explain the internals of HashMap, ConcurrentHashMap, and TreeMap.
 
-**Answer**: `HashMap` uses an array of Node buckets; it stores keys in buckets based on `hashCode()` and resolves collisions with linked lists (or red-black trees when threshold > 8). `ConcurrentHashMap` uses fine-grained locking (or CAS + synchronized on specific bins since Java 8) for thread-safe concurrent access without locking the entire map. `TreeMap` is a Red-Black tree implementation that stores keys sorted by their natural order or a custom `Comparator` — all operations are O(log n).
+**Answer**: `HashMap` uses an array of Node buckets; it stores keys in buckets based on `hashCode()` and resolves collisions with linked lists (or red-black trees when threshold > 8). `ConcurrentHashMap` uses fine-grained locking (or CAS + synchronized on specific bins since Java 8) for thread-safe concurrent access without locking the entire map. `TreeMap` is a Red-Black tree implementation that stores keys sorted by their natural order or a custom `Comparator` - all operations are O(log n).
 
 ```java
 Map<String, Integer> hashMap = new HashMap<>();
@@ -311,11 +293,13 @@ tree.put("b", 2); tree.put("a", 1); // sorted: {a=1, b=2}
 
 **Question**: Compare Comparable vs Comparator in Java.
 
-**Answer**: `Comparable` defines a natural ordering within the class itself via `compareTo()` — it's used for String, Integer, etc. `Comparator` is a separate strategy object that defines custom ordering without modifying the class. Use `Comparable` when there's a single natural order; use `Comparator` for multiple or external sorting logic.
+**Answer**: `Comparable` defines a natural ordering within the class itself via `compareTo()` - it's used for String, Integer, etc. `Comparator` is a separate strategy object that defines custom ordering without modifying the class. Use `Comparable` when there's a single natural order; use `Comparator` for multiple or external sorting logic.
 
 ```java
 public class Employee implements Comparable<Employee> {
     int id;
+    String name;
+    public int id() { return id; }
     public int compareTo(Employee o) { return Integer.compare(this.id, o.id); }
 }
 
@@ -329,9 +313,9 @@ list.sort(byName); // using Comparator
 
 ---
 
-**Question**: Explain the Streams API — intermediate and terminal operations.
+**Question**: Explain the Streams API - intermediate and terminal operations.
 
-**Answer**: The Streams API (Java 8+) enables functional-style operations on collections. Intermediate operations (`filter`, `map`, `flatMap`, `sorted`, `distinct`, `limit`) return a new stream and are lazy — they don't execute until a terminal operation is invoked. Terminal operations (`collect`, `forEach`, `reduce`, `count`, `anyMatch`, `findFirst`) produce a result or side effect and close the stream. A stream cannot be reused after a terminal operation.
+**Answer**: The Streams API (Java 8+) enables functional-style operations on collections. Intermediate operations (`filter`, `map`, `flatMap`, `sorted`, `distinct`, `limit`) return a new stream and are lazy - they don't execute until a terminal operation is invoked. Terminal operations (`collect`, `forEach`, `reduce`, `count`, `anyMatch`, `findFirst`) produce a result or side effect and close the stream. A stream cannot be reused after a terminal operation.
 
 ```java
 List<String> names = List.of("Alice", "Bob", "Charlie", "David");
@@ -352,7 +336,7 @@ long count = names.parallelStream()
 
 **Question**: What are lambda expressions and functional interfaces?
 
-**Answer**: A lambda expression is a concise anonymous function — `(parameters) -> expression` or `(parameters) -> { statements; }`. It can only be used with functional interfaces (interfaces with a single abstract method, annotated with `@FunctionalInterface`). Common built-in functional interfaces include `Function<T,R>`, `Predicate<T>`, `Consumer<T>`, `Supplier<T>`, `UnaryOperator<T>`, and `BinaryOperator<T>`.
+**Answer**: A lambda expression is a concise anonymous function - `(parameters) -> expression` or `(parameters) -> { statements; }`. It can only be used with functional interfaces (interfaces with a single abstract method, annotated with `@FunctionalInterface`). Common built-in functional interfaces include `Function<T,R>`, `Predicate<T>`, `Consumer<T>`, `Supplier<T>`, `UnaryOperator<T>`, and `BinaryOperator<T>`.
 
 ```java
 @FunctionalInterface
@@ -381,6 +365,9 @@ Supplier<Double> random = Math::random;
 List<String> names = List.of("alice", "bob", "charlie");
 
 // Static method reference
+Function<String, Integer> parser = Integer::parseInt;
+
+// Instance method of a specific object
 names.forEach(System.out::println);
 
 // Instance method of an arbitrary object
@@ -398,7 +385,7 @@ names.stream().map(prefix::concat).forEach(System.out::println);
 
 **Question**: What is the `Optional` class and when should it be used?
 
-**Answer**: `Optional<T>` is a container object that may or may not contain a non-null value, introduced in Java 8 to reduce `NullPointerException`. It provides methods like `isPresent()`, `ifPresent()`, `orElse()`, `orElseGet()`, `orElseThrow()`, `map()`, and `flatMap()` for functional-style handling of absent values. Use it as a return type for methods that might not have a result — never use it for fields, constructor parameters, or collections.
+**Answer**: `Optional<T>` is a container object that may or may not contain a non-null value, introduced in Java 8 to reduce `NullPointerException`. It provides methods like `isPresent()`, `ifPresent()`, `orElse()`, `orElseGet()`, `orElseThrow()`, `map()`, and `flatMap()` for functional-style handling of absent values. Use it as a return type for methods that might not have a result - never use it for fields, constructor parameters, or collections.
 
 ```java
 public Optional<User> findUser(String id) {
@@ -446,6 +433,7 @@ CompletableFuture.allOf(f1, f2).join();
 **Answer**: A thread goes through the following states (defined in `Thread.State` enum): `NEW` (created but not started), `RUNNABLE` (executing or ready to execute), `BLOCKED` (waiting for a monitor lock), `WAITING` (waiting indefinitely for another thread to perform an action via `wait()`, `join()`, `park()`), `TIMED_WAITING` (waiting with a timeout), and `TERMINATED` (completed execution). Transitions occur via `start()`, `sleep()`, `wait()`, `notify()`, lock acquisition, and `join()`.
 
 ```java
+final Object lock = new Object();
 Thread thread = new Thread(() -> {
     try {
         Thread.sleep(1000); // TIMED_WAITING
@@ -462,25 +450,25 @@ thread.start(); // RUNNABLE
 
 **Question**: How does the `synchronized` keyword work with intrinsic locks?
 
-**Answer**: Every Java object has an intrinsic lock (monitor). The `synchronized` keyword acquires this lock before entering the block/method and releases it upon exit (even if exceptions occur). Synchronized instance methods lock on `this`; synchronized static methods lock on the `Class` object. `synchronized` provides mutual exclusion and visibility (happens-before guarantee) — all memory operations before the unlock are visible to subsequent lock acquisitions.
+**Answer**: Every Java object has an intrinsic lock (monitor). The `synchronized` keyword acquires this lock before entering the block/method and releases it upon exit (even if exceptions occur). Synchronized instance methods lock on `this`; synchronized static methods lock on the `Class` object. `synchronized` provides mutual exclusion and visibility (happens-before guarantee) - all memory operations before the unlock are visible to subsequent lock acquisitions.
 
 ```java
 public class Counter {
     private int count = 0;
 
-    // Instance method lock — synchronized on 'this'
+    // Instance method lock - synchronized on 'this'
     public synchronized void increment() {
         count++;
     }
 
-    // Block synchronization — finer granularity
+    // Block synchronization - finer granularity
     public void decrement() {
         synchronized (this) {
             count--;
         }
     }
 
-    // Static method lock — synchronized on Counter.class
+    // Static method lock - synchronized on Counter.class
     public static synchronized void staticMethod() {}
 }
 ```
@@ -489,7 +477,7 @@ public class Counter {
 
 **Question**: What does the `volatile` keyword guarantee?
 
-**Answer**: `volatile` ensures visibility and ordering — writes to a `volatile` variable are immediately visible to all threads (no thread-local caching), and reads/writes to it establish happens-before relationships. Unlike `synchronized`, it does not provide mutual exclusion — compound operations (like `count++`) remain non-atomic. Use `volatile` for flags, status variables, or cases where only visibility is needed, not atomicity.
+**Answer**: `volatile` ensures visibility and ordering - writes to a `volatile` variable are immediately visible to all threads (no thread-local caching), and reads/writes to it establish happens-before relationships. Unlike `synchronized`, it does not provide mutual exclusion - compound operations (like `count++`) remain non-atomic. Use `volatile` for flags, status variables, or cases where only visibility is needed, not atomicity.
 
 ```java
 public class VolatileDemo {
@@ -596,9 +584,9 @@ long sum = ForkJoinPool.commonPool().invoke(new SumTask(data, 0, data.length));
 
 ---
 
-**Question**: Describe the Lock API — `ReentrantLock` and `ReadWriteLock`.
+**Question**: Describe the Lock API - `ReentrantLock` and `ReadWriteLock`.
 
-**Answer**: The `java.util.concurrent.locks` package provides more flexible locking than `synchronized`. `ReentrantLock` offers try-lock (`tryLock()`), timed lock, fairness policy, and `lockInterruptibly()`. `ReadWriteLock` maintains a pair of locks — multiple threads can read simultaneously (read lock) but write access is exclusive (write lock), improving concurrency for read-heavy workloads.
+**Answer**: The `java.util.concurrent.locks` package provides more flexible locking than `synchronized`. `ReentrantLock` offers try-lock (`tryLock()`), timed lock, fairness policy, and `lockInterruptibly()`. `ReadWriteLock` maintains a pair of locks - multiple threads can read simultaneously (read lock) but write access is exclusive (write lock), improving concurrency for read-heavy workloads.
 
 ```java
 public class LockDemo {
@@ -642,7 +630,7 @@ public class LockDemo {
 
 **Question**: What are atomic classes and how does CAS work?
 
-**Answer**: Atomic classes (`AtomicInteger`, `AtomicLong`, `AtomicReference`, `AtomicBoolean`, etc.) in `java.util.concurrent.atomic` provide lock-free, thread-safe operations on single variables. They use Compare-And-Swap (CAS), a hardware-level atomic instruction: read a value, compare it to an expected value, and if they match, swap in a new value — all in one atomic operation. CAS avoids the overhead of locking and is essential for lock-free data structures.
+**Answer**: Atomic classes (`AtomicInteger`, `AtomicLong`, `AtomicReference`, `AtomicBoolean`, etc.) in `java.util.concurrent.atomic` provide lock-free, thread-safe operations on single variables. They use Compare-And-Swap (CAS), a hardware-level atomic instruction: read a value, compare it to an expected value, and if they match, swap in a new value - all in one atomic operation. CAS avoids the overhead of locking and is essential for lock-free data structures.
 
 ```java
 public class AtomicDemo {
@@ -672,7 +660,7 @@ public class AtomicDemo {
 
 **Question**: What concurrent collections are available in Java?
 
-**Answer**: The `java.util.concurrent` package provides thread-safe collections: `ConcurrentHashMap` (highly concurrent, non-blocking reads), `CopyOnWriteArrayList` (thread-safe list where writes create a new copy — good for read-heavy scenarios), `ConcurrentLinkedQueue` (lock-free FIFO queue), `ConcurrentLinkedDeque`, `BlockingQueue` variants (`ArrayBlockingQueue`, `LinkedBlockingQueue`, `PriorityBlockingQueue`, `DelayQueue`, `SynchronousQueue`), and `ConcurrentSkipListMap`/`ConcurrentSkipListSet` (sorted concurrent maps/sets).
+**Answer**: The `java.util.concurrent` package provides thread-safe collections: `ConcurrentHashMap` (highly concurrent, non-blocking reads), `CopyOnWriteArrayList` (thread-safe list where writes create a new copy - good for read-heavy scenarios), `ConcurrentLinkedQueue` (lock-free FIFO queue), `ConcurrentLinkedDeque`, `BlockingQueue` variants (`ArrayBlockingQueue`, `LinkedBlockingQueue`, `PriorityBlockingQueue`, `DelayQueue`, `SynchronousQueue`), and `ConcurrentSkipListMap`/`ConcurrentSkipListSet` (sorted concurrent maps/sets).
 
 ```java
 // BlockingQueue for producer-consumer
@@ -697,7 +685,7 @@ list.add("safe"); // creates new copy
 
 **Question**: Explain deadlock, livelock, and starvation.
 
-**Answer**: Deadlock occurs when two or more threads hold locks that the others need, causing all to wait indefinitely — detected via thread dumps (`jstack`). Livelock is similar but threads are actively running (not blocked) yet making no progress — e.g., two threads repeatedly releasing and re-acquiring locks in response to each other. Starvation happens when a thread is perpetually denied access to a resource because other threads monopolize it — can be mitigated with fair locks.
+**Answer**: Deadlock occurs when two or more threads hold locks that the others need, causing all to wait indefinitely - detected via thread dumps (`jstack`). Livelock is similar but threads are actively running (not blocked) yet making no progress - e.g., two threads repeatedly releasing and re-acquiring locks in response to each other. Starvation happens when a thread is perpetually denied access to a resource because other threads monopolize it - can be mitigated with fair locks.
 
 ```java
 // Deadlock example
@@ -742,7 +730,7 @@ public class ReflectionDemo {
 
         Field field = String.class.getDeclaredField("value");
         field.setAccessible(true); // breaks encapsulation
-        char[] value = (char[]) field.get("hello");
+        byte[] value = (byte[]) field.get("hello"); // byte[] since Java 9 (Compact Strings)
 
         // Java 9+ use of VarHandle for safer access
     }
@@ -751,9 +739,9 @@ public class ReflectionDemo {
 
 ---
 
-**Question**: Explain annotations — retention policies and creating custom annotations.
+**Question**: Explain annotations - retention policies and creating custom annotations.
 
-**Answer**: Annotations provide metadata for code. Retention policies: `SOURCE` (discarded by compiler — e.g., `@Override`), `CLASS` (retained in bytecode but not at runtime), `RUNTIME` (available at runtime via reflection). Custom annotations are defined with `@interface`, and can include targets (`@Target`), retention (`@Retention`), and optionally documented/inherited.
+**Answer**: Annotations provide metadata for code. Retention policies: `SOURCE` (discarded by compiler - e.g., `@Override`), `CLASS` (retained in bytecode but not at runtime), `RUNTIME` (available at runtime via reflection). Custom annotations are defined with `@interface`, and can include targets (`@Target`), retention (`@Retention`), and optionally documented/inherited.
 
 ```java
 @Retention(RetentionPolicy.RUNTIME)
@@ -821,7 +809,7 @@ proxy.execute();
 
 **Question**: What are exception handling best practices in Java?
 
-**Answer**: Catch specific exceptions, not generic `Exception` or `Throwable`. Never swallow exceptions in empty catch blocks. Use try-with-resources for auto-closeable resources. Throw early, catch late — propagate exceptions to the appropriate handling layer. Use custom exceptions for domain-specific errors. Log exceptions with context, not just the stack trace. Prefer unchecked exceptions for programming errors.
+**Answer**: Catch specific exceptions, not generic `Exception` or `Throwable`. Never swallow exceptions in empty catch blocks. Use try-with-resources for auto-closeable resources. Throw early, catch late - propagate exceptions to the appropriate handling layer. Use custom exceptions for domain-specific errors. Log exceptions with context, not just the stack trace. Prefer unchecked exceptions for programming errors.
 
 ```java
 // Good
@@ -842,15 +830,15 @@ try {
 
 **Question**: Differentiate between NIO and IO in Java.
 
-**Answer**: Java IO (java.io) is stream-oriented and blocking — reads are sequential, one byte/character at a time with no buffering control. Java NIO (java.nio, Java 1.4+) is buffer-oriented and non-blocking — data is read into a `Buffer` for processing, and channels support both read and write. NIO also supports selectors for multiplexed I/O (one thread managing multiple channels). NIO is more efficient for high-throughput, scalable server applications.
+**Answer**: Java IO (java.io) is stream-oriented and blocking - reads are sequential, one byte/character at a time with no buffering control. Java NIO (java.nio, Java 1.4+) is buffer-oriented and non-blocking - data is read into a `Buffer` for processing, and channels support both read and write. NIO also supports selectors for multiplexed I/O (one thread managing multiple channels). NIO is more efficient for high-throughput, scalable server applications.
 
 ```java
-// IO — blocking stream
+// IO - blocking stream
 try (InputStream in = new FileInputStream("file.txt")) {
     int data = in.read(); // blocks until available
 }
 
-// NIO — non-blocking with Buffer
+// NIO - non-blocking with Buffer
 try (FileChannel channel = FileChannel.open(Path.of("file.txt"))) {
     ByteBuffer buffer = ByteBuffer.allocate(1024);
     channel.read(buffer); // returns immediately, may read partial data
@@ -890,13 +878,13 @@ try (ResourceA a = new ResourceA();
 
 ---
 
-**Question**: What are Records in Java (Java 14+)?
+**Question**: What are Records in Java (Java 16+)?
 
 **Answer**: Records are transparent carriers for immutable data. A record declares a final class with automatically generated canonical constructor, `equals()`, `hashCode()`, `toString()`, and accessor methods (named like the field, not `getX()`). All fields are private and final. Records cannot extend other classes but can implement interfaces. They're ideal for DTOs, value objects, and API responses.
 
 ```java
 public record Point(int x, int y) {
-    // Compact constructor — validation
+    // Compact constructor - validation
     public Point {
         if (x < 0 || y < 0) {
             throw new IllegalArgumentException("Coordinates must be non-negative");
@@ -926,7 +914,7 @@ public sealed class Shape permits Circle, Rectangle, Triangle { }
 
 public final class Circle extends Shape { double radius; }
 public final class Rectangle extends Shape { double w, h; }
-public non-sealed class Triangle extends Shape { } // open to further extension
+public non-sealed class Triangle extends Shape { double base, height; } // open to further extension
 
 // Exhaustive pattern matching (Java 17+)
 double area(Shape s) {
@@ -934,7 +922,7 @@ double area(Shape s) {
         case Circle c -> Math.PI * c.radius * c.radius;
         case Rectangle r -> r.w * r.h;
         case Triangle t -> 0.5 * t.base * t.height;
-        // no default needed — exhaustive
+        // no default needed - exhaustive
     };
 }
 ```
@@ -971,7 +959,7 @@ String formatted = switch (obj) {
 
 **Question**: What are Virtual Threads (Project Loom, Java 21+)?
 
-**Answer**: Virtual threads are lightweight, JVM-managed threads that enable high-throughput concurrent applications without the complexity of reactive programming. Unlike platform threads (OS threads), millions of virtual threads can exist — they are mounted on carrier platform threads when running and unmounted when blocking (e.g., I/O). Virtual threads use `Thread.ofVirtual()` or `Executors.newVirtualThreadPerTaskExecutor()`. They're ideal for I/O-bound workloads with many concurrent tasks.
+**Answer**: Virtual threads are lightweight, JVM-managed threads that enable high-throughput concurrent applications without the complexity of reactive programming. Unlike platform threads (OS threads), millions of virtual threads can exist - they are mounted on carrier platform threads when running and unmounted when blocking (e.g., I/O). Virtual threads use `Thread.ofVirtual()` or `Executors.newVirtualThreadPerTaskExecutor()`. They're ideal for I/O-bound workloads with many concurrent tasks.
 
 ```java
 // Creating virtual threads
@@ -983,143 +971,13 @@ try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
     executor.submit(() -> System.out.println("Virtual task"));
 }
 
-// Scale — millions of virtual threads
+// Scale - millions of virtual threads
 try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
     IntStream.range(0, 1_000_000).forEach(i ->
         executor.submit(() -> {
-            // I/O operation — thread unmounts automatically
+            // I/O operation - thread unmounts automatically
         })
     );
-}
-```
-
----
-
-**Question**: How does Spring Boot auto-configuration work?
-
-**Answer**: Spring Boot auto-configuration attempts to automatically configure beans based on dependencies on the classpath, property settings, and existing bean definitions. It's driven by `@EnableAutoConfiguration` (included in `@SpringBootApplication`) and implemented via `AutoConfiguration` classes annotated with `@ConditionalOnClass`, `@ConditionalOnMissingBean`, `@ConditionalOnProperty`, etc. Each auto-configuration class is registered in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
-
-```java
-// Example auto-configuration
-@AutoConfiguration
-@ConditionalOnClass(DataSource.class)
-@EnableConfigurationProperties(DataSourceProperties.class)
-public class DataSourceAutoConfiguration {
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DataSource dataSource(DataSourceProperties properties) {
-        return DataSourceBuilder.create()
-            .url(properties.getUrl())
-            .username(properties.getUsername())
-            .password(properties.getPassword())
-            .build();
-    }
-}
-```
-
----
-
-**Question**: Describe the Spring Bean lifecycle.
-
-**Answer**: The Spring Bean lifecycle includes: instantiation (via constructor), dependency injection via setters/fields, `BeanNameAware.setBeanName()`, `BeanClassLoaderAware.setBeanClassLoader()`, `BeanFactoryAware.setBeanFactory()`, `ApplicationContextAware.setApplicationContext()`, `BeanPostProcessor.postProcessBeforeInitialization()`, `@PostConstruct`/`InitializingBean.afterPropertiesSet()`/custom init method, `BeanPostProcessor.postProcessAfterInitialization()`, bean is ready for use, `@PreDestroy`/`DisposableBean.destroy()`/custom destroy method on shutdown.
-
-```java
-@Component
-public class MyBean implements InitializingBean, DisposableBean {
-    @PostConstruct
-    public void init() { System.out.println("PostConstruct"); }
-
-    @Override
-    public void afterPropertiesSet() { System.out.println("AfterPropertiesSet"); }
-
-    public void customInit() { System.out.println("Custom init"); }
-
-    @PreDestroy
-    public void cleanup() { System.out.println("PreDestroy"); }
-
-    @Override
-    public void destroy() { System.out.println("DisposableBean destroy"); }
-}
-```
-
----
-
-**Question**: Explain `@Transactional` — propagation and isolation levels.
-
-**Answer**: Propagation defines how transactions relate to each other: `REQUIRED` (join existing or create new), `REQUIRES_NEW` (suspend existing, create new), `NESTED` (savepoint within existing), `SUPPORTS`, `NOT_SUPPORTED`, `MANDATORY`, `NEVER`. Isolation defines data visibility between concurrent transactions: `READ_UNCOMMITTED` (dirty reads), `READ_COMMITTED` (no dirty reads — default for most DBs), `REPEATABLE_READ` (prevents non-repeatable reads), `SERIALIZABLE` (fully isolated, lowest concurrency).
-
-```java
-@Service
-public class OrderService {
-    @Autowired private AuditService auditService;
-
-    @Transactional(propagation = Propagation.REQUIRED,
-                   isolation = Isolation.READ_COMMITTED,
-                   rollbackFor = Exception.class)
-    public void createOrder(Order order) {
-        orderRepo.save(order);
-        auditService.log("Order created"); // joins same transaction
-
-        // REQUIRES_NEW — separate transaction
-        // notificationService.sendAsync(order);
-    }
-}
-```
-
----
-
-**Question**: What is AOP in Spring (Aspect-Oriented Programming)?
-
-**Answer**: AOP modularizes cross-cutting concerns (logging, security, transactions, caching) by separating them from business logic. Aspects are defined with `@Aspect` and include pointcuts (where to apply) and advices (what to do). Advice types: `@Before` (before method execution), `@AfterReturning` (after successful return), `@AfterThrowing` (after exception), `@After` (finally), and `@Around` (wraps the method with full control). Spring AOP uses proxy-based AOP (JDK proxies for interfaces, CGLIB for classes).
-
-```java
-@Aspect
-@Component
-public class LoggingAspect {
-    @Around("execution(* com.example.service.*.*(..))")
-    public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
-        long start = System.currentTimeMillis();
-        Object result = joinPoint.proceed();
-        long duration = System.currentTimeMillis() - start;
-        System.out.println(joinPoint.getSignature() + " took " + duration + "ms");
-        return result;
-    }
-
-    @Before("execution(* com.example.service.*.save*(..))")
-    public void beforeSave() {
-        System.out.println("Before save operation");
-    }
-}
-```
-
----
-
-**Question**: Compare constructor injection vs field injection in Spring.
-
-**Answer**: Constructor injection (recommended) makes dependencies explicit, enables immutability (`final` fields), prevents circular dependencies at startup, and simplifies testing (no reflection needed for instantiation). Field injection (`@Autowired` on fields) is more concise but makes testing harder (needs reflection), hides dependencies, and is not supported in Spring Boot 3+ for final fields. Constructor injection is the Spring team's recommended approach.
-
-```java
-// Recommended — constructor injection
-@Service
-public class UserService {
-    private final UserRepository userRepo;
-    private final EmailService emailService;
-
-    public UserService(UserRepository userRepo, EmailService emailService) {
-        this.userRepo = userRepo;
-        this.emailService = emailService;
-    }
-}
-
-// Avoid — field injection
-@Service
-public class UserService {
-    @Autowired
-    private UserRepository userRepo; // not final, harder to test
-
-    @Autowired
-    private EmailService emailService;
 }
 ```
 
@@ -1144,7 +1002,7 @@ public class UserService {
 ```
 
 ```groovy
-// Gradle — task-based
+// Gradle - task-based
 plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0'
@@ -1165,6 +1023,7 @@ tasks.named('test') {
 
 ```java
 ExecutorService executor = Executors.newFixedThreadPool(10);
+private static final Logger log = LoggerFactory.getLogger(MyClass.class);
 
 CompletableFuture<Double> userFuture = CompletableFuture.supplyAsync(() ->
     fetchUser(), executor);
@@ -1181,13 +1040,14 @@ CompletableFuture<Double> combined = userFuture
     });
 
 // Wait for multiple independent tasks
+List<Task> tasks = List.of(task1, task2, task3);
 List<CompletableFuture<String>> futures = tasks.stream()
     .map(t -> CompletableFuture.supplyAsync(t::process, executor))
     .toList();
 
 CompletableFuture<Void> all = CompletableFuture.allOf(
     futures.toArray(new CompletableFuture[0]));
-String results = all.thenApply(v ->
+List<String> results = all.thenApply(v ->
     futures.stream().map(CompletableFuture::join).collect(Collectors.toList())
 ).join();
 ```
@@ -1236,9 +1096,9 @@ module com.example.myapp {
 
 ---
 
-**Question**: Explain the Java Module System directives — `exports`, `requires`, `opens`.
+**Question**: Explain the Java Module System directives - `exports`, `requires`, `opens`.
 
-**Answer**: `requires` declares that a module depends on another module at compile and runtime. `exports package` makes the package accessible to all modules (or a specific module with `exports ... to ...`). `opens package` enables runtime reflection (`setAccessible(true)`) on the package's types — needed by frameworks like Spring, Hibernate, and Jackson. Without `opens`, reflection on package-private/internal types fails at runtime.
+**Answer**: `requires` declares that a module depends on another module at compile and runtime. `exports package` makes the package accessible to all modules (or a specific module with `exports ... to ...`). `opens package` enables runtime reflection (`setAccessible(true)`) on the package's types - needed by frameworks like Spring, Hibernate, and Jackson. Without `opens`, reflection on package-private/internal types fails at runtime.
 
 ```java
 // module-info.java examples
@@ -1246,7 +1106,7 @@ module com.example.myapp {
 // Standard exports
 exports com.example.app.dto;
 
-// Qualified export — only visible to specific module
+// Qualified export - only visible to specific module
 exports com.example.app.internal to com.example.admin;
 
 // Open entire module for reflection (all packages)
@@ -1301,28 +1161,28 @@ map.computeIfAbsent("key", k -> expensiveComputation(k));
 // Atomic replace
 map.replace("key", 1, 2); // only if current value is 1
 
-// merge — atomic upsert
+// merge - atomic upsert
 map.merge("key", 1, Integer::sum);
 ```
 
 ---
 
-**Question**: What are the different types of references in Java — Strong, Soft, Weak, Phantom?
+**Question**: What are the different types of references in Java - Strong, Soft, Weak, Phantom?
 
-**Answer**: Strong references (normal references) prevent GC of the referent. `SoftReference` is cleared by GC only when memory is low — useful for caches. `WeakReference` is cleared at the next GC cycle — used by `WeakHashMap`. `PhantomReference` cannot be accessed after GC (no `get()` method); it's used for post-mortem cleanup (e.g., direct buffer deallocation). Reference queues (`ReferenceQueue`) notify when references are enqueued.
+**Answer**: Strong references (normal references) prevent GC of the referent. `SoftReference` is cleared by GC only when memory is low - useful for caches. `WeakReference` is cleared at the next GC cycle - used by `WeakHashMap`. `PhantomReference` cannot be accessed after GC (no `get()` method); it's used for post-mortem cleanup (e.g., direct buffer deallocation). Reference queues (`ReferenceQueue`) notify when references are enqueued.
 
 ```java
-// Soft reference — cache
+// Soft reference - cache
 SoftReference<Cache> cache = new SoftReference<>(new Cache());
 Cache c = cache.get(); // null if GC cleared it
 
-// Weak reference — WeakHashMap uses WeakReference for keys
+// Weak reference - WeakHashMap uses WeakReference for keys
 WeakReference<Object> weak = new WeakReference<>(new Object());
 System.out.println(weak.get()); // non-null
 System.gc();
 System.out.println(weak.get()); // likely null
 
-// Phantom reference — cleanup
+// Phantom reference - cleanup
 ReferenceQueue<Object> queue = new ReferenceQueue<>();
 PhantomReference<Object> phantom = new PhantomReference<>(new Object(), queue);
 // phantom.get() always returns null

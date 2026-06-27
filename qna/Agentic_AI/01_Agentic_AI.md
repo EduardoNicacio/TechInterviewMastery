@@ -31,6 +31,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "get_weather",
+            "description": "Get the current weather for a location",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -65,11 +66,16 @@ tools = [
 class SupervisorAgent:
     def run(self, task):
         plan = self.decompose(task)
-        for step in plan:
+        i = 0
+        while i < len(plan):
+            step = plan[i]
             agent = self.select_agent(step)
             result = agent.execute(step)
             if not result.success:
                 plan = self.replan(step, result)
+                i = 0
+                continue
+            i += 1
         return self.aggregate(plan)
 ```
 
@@ -86,14 +92,15 @@ class SupervisorAgent:
 **Answer**: ReAct interleaves reasoning traces with action steps, allowing the LLM to think before acting and observe results before the next thought. This improves transparency and correctness by making the chain-of-thought visible and actionable.
 
 ```python
-def react_agent(prompt):
-    while not done:
+def react_agent(prompt, max_iterations=10):
+    for _ in range(max_iterations):
         thought = llm.generate(f"Thought: {prompt}")
         action = parse_action(thought)
-        if action == "Finish":
-            return thought
+        if action.type == "Finish":
+            return action.final_answer
         observation = execute(action)
         prompt += f"\nObservation: {observation}"
+    return "Max iterations reached"
 ```
 
 ---
@@ -104,11 +111,16 @@ def react_agent(prompt):
 
 ```python
 def plan_and_execute(task):
-    plan = llm.generate(f"Create a plan for: {task}")
-    for step in plan:
+    plan = llm.generate(f"Create a plan for: {task}")  # returns list of steps
+    i = 0
+    while i < len(plan):
+        step = plan[i]
         result = execute(step)
         if result.failed:
             plan = llm.generate(f"Revise plan based on: {result}")
+            i = 0
+            continue
+        i += 1
     return result
 ```
 
@@ -150,12 +162,22 @@ class ConversationManager:
     def __init__(self, max_tokens=4000):
         self.max_tokens = max_tokens
         self.history = []
+        self.summary = ""
+
+    def token_count(self, messages):
+        return sum(len(m["content"].split()) for m in messages)  # rough estimate
+
     def add_message(self, msg):
         self.history.append(msg)
-        while self.token_count(self.history) > self.max_tokens:
-            oldest = self.history.pop(0)
-            summary = llm.summarize(oldest)
-            self.history.insert(0, {"role": "system", "content": summary})
+        if self.token_count(self.history) > self.max_tokens:
+            old_messages = self.history[:len(self.history)//2]
+            self.summary = llm.summarize(old_messages)
+            self.history = self.history[len(self.history)//2:]
+
+    def get_context(self):
+        if self.summary:
+            return [{"role": "system", "content": self.summary}] + self.history
+        return self.history
 ```
 
 ---
@@ -184,7 +206,7 @@ def safe_execute(tool, params, max_retries=3):
         except TemporaryError as e:
             wait = 2 ** attempt
             time.sleep(wait)
-        except FatalError:
+        except FatalError as e:
             return {"error": str(e), "fallback": True}
     return escalate_to_human(params)
 ```
@@ -359,9 +381,11 @@ Respond in this JSON format: {"thought": "...", "action": "tool_name", "params":
 **Answer**: Cache LLM responses keyed by the concatenation of system prompt, user message, and tool results. Use a TTL-based cache (Redis or in-memory) to avoid redundant API calls for identical or semantically similar queries.
 
 ```python
+import hashlib, json
+
 cache = {}
 def cached_llm_call(prompt, tools):
-    key = hash((prompt, json.dumps(tools)))
+    key = hashlib.sha256(json.dumps({"prompt": prompt, "tools": tools}, sort_keys=True).encode()).hexdigest()
     if key in cache and not cache[key].expired:
         return cache[key].value
     result = llm.call(prompt, tools)
@@ -391,15 +415,28 @@ async def stream_agent(prompt):
 **Answer**: Rate limiting controls the frequency of LLM and tool API calls using token-bucket or sliding-window algorithms. Apply per-user, per-agent, and global limits to prevent exceeding API quotas and manage costs.
 
 ```python
+import asyncio, time
+
 class RateLimiter:
     def __init__(self, max_rpm=60):
         self.max_rpm = max_rpm
         self.tokens = max_rpm
+        self.refill_rate = max_rpm / 60.0  # tokens per second
+        self.last_refill = time.monotonic()
+        self._lock = asyncio.Lock()
+
     async def acquire(self):
-        if self.tokens <= 0:
-            wait = self.refresh_in_seconds()
-            await asyncio.sleep(wait)
-        self.tokens -= 1
+        async with self._lock:
+            now = time.monotonic()
+            elapsed = now - self.last_refill
+            self.tokens = min(self.max_rpm, self.tokens + elapsed * self.refill_rate)
+            self.last_refill = now
+            if self.tokens < 1:
+                wait = (1 - self.tokens) / self.refill_rate
+                await asyncio.sleep(wait)
+                self.tokens = 0
+                self.last_refill = time.monotonic()
+            self.tokens -= 1
 ```
 
 ---
@@ -471,7 +508,7 @@ def rag_agent(query):
 ```python
 tools = [
     {"name": "fetch_page", "fn": lambda url: requests.get(url).text},
-    {"name": "extract_links", "fn": lambda html: BeautifulStoneSoup(html).find_all("a")},
+    {"name": "extract_links", "fn": lambda html: BeautifulSoup(html, "html.parser").find_all("a")},
     {"name": "search", "fn": lambda q: requests.get(f"https://api.duckduckgo.com/?q={q}").json()}
 ]
 ```
@@ -486,7 +523,14 @@ tools = [
 import subprocess
 def safe_execute(code):
     result = subprocess.run(
-        ["docker", "run", "--rm", "python:slim", "python", "-c", code],
+        [
+            "docker", "run", "--rm",
+            "--network", "none",
+            "--memory", "256m",
+            "--cpus", "0.5",
+            "--read-only",
+            "python:slim", "python", "-c", code
+        ],
         capture_output=True, text=True, timeout=30
     )
     return result.stdout
@@ -499,8 +543,13 @@ def safe_execute(code):
 **Answer**: Provide a tool with a read-only connection that accepts SQL queries. The agent generates SQL from natural language, validates it against a schema, and returns results. Restrict to SELECT statements and apply row/query limits.
 
 ```python
-def query_database(sql: str) -> list:
-    if not sql.strip().upper().startswith("SELECT"):
+import sqlparse
+
+def query_database(sql: str) -> list | dict:
+    parsed = sqlparse.parse(sql.strip())
+    if len(parsed) > 1:
+        return {"error": "Multiple statements are not allowed"}
+    if parsed[0].get_type() != 'SELECT':
         return {"error": "Only SELECT queries are allowed"}
     with conn.cursor() as cur:
         cur.execute(sql)
@@ -534,7 +583,12 @@ def query_database(sql: str) -> list:
 ```python
 def consensus(agents, task):
     votes = [agent.evaluate(task) for agent in agents]
-    return max(set(votes), key=votes.count)
+    counts = {v: votes.count(v) for v in set(votes)}
+    max_count = max(counts.values())
+    winners = [v for v, c in counts.items() if c == max_count]
+    if len(winners) > 1:
+        return random.choice(winners)  # tie-breaking
+    return winners[0]
 ```
 
 ---
@@ -565,6 +619,6 @@ def consensus(agents, task):
 class PersistentAgent:
     def step(self, state):
         new_state = self.graph.invoke(state)
-        self.db.save(state.id, new_state.dict())
+        self.db.save(state.id, new_state.model_dump())
         return new_state
 ```

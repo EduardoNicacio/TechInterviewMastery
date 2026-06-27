@@ -56,7 +56,7 @@
 
 **Question**: When would you use a read‑only struct in C#?
 
-**Answer**: Use it when you need an immutable value type that can be passed by value without accidental modification. The keyword makes all fields implicitly readonly, so the struct’s state cannot change after construction, which aids correctness and testability. Note: it does **not** guarantee no heap allocation—boxing to `object` is still possible.
+**Answer**: Use it when you need an immutable value type that can be passed by value without accidental modification. The keyword makes all fields implicitly readonly, so the struct’s state cannot change after construction, which aids correctness and testability. Note: it does **not** guarantee no heap allocation-boxing to `object` is still possible.
 
 ---
 

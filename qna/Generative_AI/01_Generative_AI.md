@@ -50,15 +50,16 @@ class MultiHeadAttention(nn.Module):
         self.W_o = nn.Linear(d_model, d_model)
 
     def forward(self, q, k, v, mask=None):
-        B, T, _ = q.shape
-        Q = self.W_q(q).view(B, T, self.n_heads, self.d_k).transpose(1, 2)
-        K = self.W_k(k).view(B, T, self.n_heads, self.d_k).transpose(1, 2)
-        V = self.W_v(v).view(B, T, self.n_heads, self.d_k).transpose(1, 2)
+        B, T_q, _ = q.shape
+        T_k, T_v = k.shape[1], v.shape[1]
+        Q = self.W_q(q).view(B, T_q, self.n_heads, self.d_k).transpose(1, 2)
+        K = self.W_k(k).view(B, T_k, self.n_heads, self.d_k).transpose(1, 2)
+        V = self.W_v(v).view(B, T_v, self.n_heads, self.d_k).transpose(1, 2)
         scores = Q @ K.transpose(-2, -1) / (self.d_k ** 0.5)
         if mask is not None:
             scores = scores.masked_fill(mask == 0, float('-inf'))
         attn = scores.softmax(dim=-1)
-        out = (attn @ V).transpose(1, 2).reshape(B, T, -1)
+        out = (attn @ V).transpose(1, 2).reshape(B, T_q, -1)
         return self.W_o(out)
 ```
 
@@ -72,7 +73,7 @@ class MultiHeadAttention(nn.Module):
 
 **Question**: What are the key architectural differences between GPT, LLaMA, and Claude?
 
-**Answer**: GPT uses a decoder-only Transformer with causal masking, learned positional embeddings, and LayerNorm after each sublayer (pre-norm). LLaMA introduces RMSNorm instead of LayerNorm, SwiGLU activation in FFN, and rotary positional embeddings (RoPE) for better length generalization. Claude (Anthropic) builds on Transformer architecture with a focus on constitutional AI alignment, large context windows, and extensive RLHF.
+**Answer**: GPT uses a decoder-only Transformer with causal masking, learned positional embeddings, and LayerNorm before each sublayer (pre-norm). LLaMA introduces RMSNorm instead of LayerNorm, SwiGLU activation in FFN, and rotary positional embeddings (RoPE) for better length generalization. Claude (Anthropic) builds on Transformer architecture with a focus on constitutional AI alignment, large context windows, and extensive RLHF.
 
 ---
 
@@ -105,7 +106,7 @@ print([enc.decode([t]) for t in tokens])
 
 **Question**: What is KV-cache optimization and how does it improve inference?
 
-**Answer**: KV-cache stores the Key and Value tensors from previous decoding steps so they don't need to be recomputed at each timestep. This reduces redundant computation from O(n³) to O(n²) per step during autoregressive generation. It trades memory for speed and is essential for low-latency LLM inference.
+**Answer**: KV-cache stores the Key and Value tensors from previous decoding steps so they don't need to be recomputed at each timestep. This reduces total redundant computation from O(n³) to O(n²) across all decoding steps (or equivalently, per-step computation from O(t²) to O(t)). It trades memory for speed and is essential for low-latency LLM inference.
 
 ```python
 # Simplified KV-cache logic during decoding
@@ -198,6 +199,7 @@ model = get_peft_model(base_model, lora_config)
 
 ```python
 # Loading a quantized model with bitsandbytes
+import torch
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 bnb_config = BitsAndBytesConfig(
@@ -215,7 +217,7 @@ model = AutoModelForCausalLM.from_pretrained(
 
 **Question**: Explain temperature, top-k, and top-p sampling.
 
-**Answer**: Temperature controls the sharpness of the output probability distribution — lower values (e.g., 0.1) make the model more deterministic, higher values (e.g., 1.5) increase randomness. Top-k sampling restricts output to the k most likely tokens before sampling. Top-p (nucleus) sampling selects the smallest set of tokens whose cumulative probability exceeds p, dynamically adjusting the candidate pool.
+**Answer**: Temperature controls the sharpness of the output probability distribution - lower values (e.g., 0.1) make the model more deterministic, higher values (e.g., 1.5) increase randomness. Top-k sampling restricts output to the k most likely tokens before sampling. Top-p (nucleus) sampling selects the smallest set of tokens whose cumulative probability exceeds p, dynamically adjusting the candidate pool.
 
 ```python
 def sample_with_temperature(logits, temperature=1.0, top_k=50, top_p=0.9):
@@ -258,7 +260,7 @@ def sample_with_temperature(logits, temperature=1.0, top_k=50, top_p=0.9):
 
 **Question**: Compare BLEU, ROUGE, METEOR, and perplexity as evaluation metrics.
 
-**Answer**: Perplexity measures how well the model predicts a sequence — lower is better for language modeling. BLEU computes n-gram precision between generated and reference text, commonly used in translation. ROUGE measures n-gram recall, primarily for summarization. METEOR aligns unigrams and accounts for synonyms and stemming, correlating better with human judgment than BLEU alone.
+**Answer**: Perplexity measures how well the model predicts a sequence - lower is better for language modeling. BLEU computes n-gram precision between generated and reference text, commonly used in translation. ROUGE measures n-gram recall, primarily for summarization. METEOR aligns unigrams and accounts for synonyms and stemming, correlating better with human judgment than BLEU alone.
 
 ```python
 from evaluate import load
@@ -367,12 +369,15 @@ class SparseMoE(nn.Module):
 **Answer**: Diffusion models learn to reverse a gradual noising process. During training, Gaussian noise is added to an image over T timesteps, and the model learns to predict the added noise. During generation, the model starts from pure noise and iteratively denoises it over T steps. Text conditioning is injected via cross-attention, enabling text-to-image generation (e.g., Stable Diffusion, DALL-E 3).
 
 ```python
-# Simplified diffusion sampling step
+# Simplified diffusion sampling step (DDPM)
 @torch.no_grad()
 def sample_step(model, x_t, t, text_embedding):
     predicted_noise = model(x_t, t, text_embedding)
     alpha_t = alphas[t]
     alpha_bar_t = alphas_cumprod[t]
+    alpha_bar_t_minus_1 = alphas_cumprod[t - 1] if t > 0 else torch.tensor(1.0)
+    beta_t = 1 - alpha_t
+    sigma_t = torch.sqrt(beta_t * (1 - alpha_bar_t_minus_1) / (1 - alpha_bar_t))
     x_t_minus_1 = (1 / torch.sqrt(alpha_t)) * (
         x_t - (1 - alpha_t) / torch.sqrt(1 - alpha_bar_t) * predicted_noise
     )
@@ -494,6 +499,8 @@ response = client.chat.completions.create(
 from pydantic import BaseModel
 from openai import OpenAI
 
+client = OpenAI()
+
 class Movie(BaseModel):
     title: str
     year: int
@@ -563,11 +570,17 @@ anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
 **Answer**: Synthetic data is generated by a strong model (e.g., GPT-4, Claude) given seed prompts or a taxonomy. Common methods include self-instruct (model generates its own training pairs), back-translation (round-trip translation for paraphrases), and evolution (mutating existing instructions). Generated data must be filtered for quality and diversity, often using a teacher model as a judge.
 
 ```python
-def generate_synthetic_qa(topic, teacher_model="gpt-4", num_samples=10):
+from openai import OpenAI
+
+def generate_synthetic_qa(topic, model="gpt-4", num_samples=10):
+    client = OpenAI()
     prompt = f"""Generate {num_samples} question-answer pairs about {topic}.
 Format each as: Q: <question>\nA: <answer>"""
-    response = teacher_model.generate(prompt)
-    return parse_qa_pairs(response)
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return parse_qa_pairs(response.choices[0].message.content)
 ```
 
 ---

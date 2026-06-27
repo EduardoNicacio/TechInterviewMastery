@@ -68,7 +68,7 @@ def fibonacci():
 ```python
 def flatten(nested):
     for item in nested:
-        if hasattr(item, '__iter__'):
+        if isinstance(item, (list, tuple)):
             yield from flatten(item)
         else:
             yield item
@@ -223,8 +223,10 @@ def make_counter():
 def repeat(n):
     def decorator(func):
         def wrapper(*args, **kwargs):
+            result = None
             for _ in range(n):
-                func(*args, **kwargs)
+                result = func(*args, **kwargs)
+            return result
         return wrapper
     return decorator
 
@@ -237,7 +239,7 @@ def say_hello():
 
 **Question**: What are metaclasses and when should you use them?
 
-**Answer**: A metaclass is the class of a class, defining how classes are constructed (default: `type`). Metaclasses intercept class creation to modify attributes, register classes, or enforce conventions. Use them sparingly — frameworks (Django, SQLAlchemy) use them for ORM models, but simpler alternatives like decorators or class inheritance usually suffice.
+**Answer**: A metaclass is the class of a class, defining how classes are constructed (default: `type`). Metaclasses intercept class creation to modify attributes, register classes, or enforce conventions. Use them sparingly - frameworks (Django, SQLAlchemy) use them for ORM models, but simpler alternatives like decorators or class inheritance usually suffice.
 
 ```python
 class SingletonMeta(type):
@@ -349,7 +351,7 @@ class D(B, C): pass
 
 **Question**: What is duck typing and how do EAFP and LBYL differ?
 
-**Answer**: Duck typing means "if it walks like a duck and quacks like a duck, it's a duck" — an object's suitability is determined by its methods, not its type. EAFP (Easier to Ask Forgiveness than Permission) attempts an operation and catches exceptions, while LBYL (Look Before You Leap) checks preconditions first. Python favors EAFP.
+**Answer**: Duck typing means "if it walks like a duck and quacks like a duck, it's a duck" - an object's suitability is determined by its methods, not its type. EAFP (Easier to Ask Forgiveness than Permission) attempts an operation and catches exceptions, while LBYL (Look Before You Leap) checks preconditions first. Python favors EAFP.
 
 ```python
 # EAFP
@@ -468,7 +470,7 @@ total = reduce(lambda a, b: a + b, [1, 2, 3, 4])  # 10
 **Answer**: `itertools` provides iterator-building tools: `chain` (flatten iterables), `cycle` (infinite repeat), `count` (infinite arithmetic progression), `islice` (slice an iterator), `product` (Cartesian product), `permutations`, `combinations`, `groupby` (consecutive key groups), and `zip_longest` (zip with fill value).
 
 ```python
-from itertools import chain, groupby, islice
+from itertools import chain, count, groupby, islice
 chained = list(chain([1, 2], [3, 4]))       # [1, 2, 3, 4]
 first_5 = list(islice(count(10, 2), 5))     # [10, 12, 14, 16, 18]
 ```
@@ -604,7 +606,7 @@ def find_user(user_id: int) -> Optional[str]:
 
 **Question**: What is `@dataclass` and how does it simplify class definitions?
 
-**Answer**: `@dataclass` auto-generates `__init__`, `__repr__`, `__eq__`, `__hash__`, and other dunder methods based on annotated fields. It reduces boilerplate for data containers and supports default values, ordering (`frozen=True`), and field customization via `field()`.
+**Answer**: `@dataclass` auto-generates `__init__`, `__repr__`, and `__eq__` by default. It does not auto-generate `__hash__` - in fact it explicitly makes instances unhashable when `eq=True` (default) and `frozen=False` (default). `__hash__` is only generated when `frozen=True` or `eq=False`. Use `frozen=True` for immutability (all fields become read-only), and `order=True` for comparison dunder methods (`__lt__`, `__le__`, etc.).
 
 ```python
 from dataclasses import dataclass
@@ -706,7 +708,7 @@ d1 |= d2               # in-place: d1 now {"a": 1, "b": 3, "c": 4}
 
 **Question**: How do you handle timezones in Python using `zoneinfo`?
 
-**Answer**: `zoneinfo` (Python 3.9+) provides IANA timezone database support via `ZoneInfo` objects. Use it with `datetime.replace(tzinfo=...)` or `astimezone()` for timezone-aware datetime arithmetic, replacing the deprecated `pytz` library.
+**Answer**: `zoneinfo` (Python 3.9+) provides IANA timezone database support via `ZoneInfo` objects. Use `datetime.now(ZoneInfo(...))` for the current time in a timezone, and `.astimezone(ZoneInfo(...))` for converting between timezones. Avoid `datetime.replace(tzinfo=...)` as it merely tags a timezone without conversion, which can produce incorrect results during DST transitions.
 
 ```python
 from datetime import datetime

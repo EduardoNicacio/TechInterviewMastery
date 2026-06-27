@@ -2,14 +2,14 @@
 
 **Question**: What are the layers in Clean Architecture and what is the dependency rule?
 
-**Answer**: Clean Architecture consists of four layers: Enterprise Business Rules (Entities), Application Business Rules (Use Cases), Interface Adapters (Controllers, Gateways), and Frameworks & Drivers (DB, UI, Web). The dependency rule states that source code dependencies can only point inward — outer layers depend on inner layers, never the reverse.
+**Answer**: Clean Architecture consists of four layers: Enterprise Business Rules (Entities), Application Business Rules (Use Cases), Interface Adapters (Controllers, Gateways), and Frameworks & Drivers (DB, UI, Web). The dependency rule states that source code dependencies can only point inward - outer layers depend on inner layers, never the reverse.
 
 ```csharp
 // Inner layer – Enterprise Business Rules
 public class Order
 {
     public decimal Total { get; private set; }
-    public void ApplyDiscount(decimal percentage) => Total -= Total * percentage;
+    public void ApplyDiscount(decimal percentage) => Total -= Total * (percentage / 100m);
 }
 
 // Outer layer – Interface Adapters
@@ -120,7 +120,7 @@ public class GetOrderSummaryHandler : IRequestHandler<GetOrderSummaryQuery, Orde
     public async Task<OrderSummaryDto> Handle(GetOrderSummaryQuery request, CancellationToken ct)
     {
         // Direct SQL or read-optimized store
-        return await _db.QueryAsync<OrderSummaryDto>("SELECT * FROM OrderSummaries WHERE Id = @Id", request);
+        return await _db.QueryAsync<OrderSummaryDto>("SELECT * FROM OrderSummaries WHERE Id = @OrderId", request);
     }
 }
 ```
@@ -132,16 +132,23 @@ public class GetOrderSummaryHandler : IRequestHandler<GetOrderSummaryQuery, Orde
 **Answer**: Event Sourcing stores state changes as an append-only sequence of events rather than the current state. To get the current state, you replay all events. This provides a complete audit trail, enables temporal queries, and supports rebuilding projections, but increases storage and replay complexity compared to CRUD.
 
 ```csharp
-// Event
-public record OrderCreated(Guid OrderId, Guid CustomerId, DateTime OccurredAt);
-public record OrderShipped(Guid OrderId, DateTime ShippedAt);
+// Event interface for filtering
+public interface IAggregateEvent
+{
+    Guid AggregateId { get; }
+}
+
+// Concrete events
+public record OrderCreated(Guid AggregateId, Guid CustomerId, DateTime OccurredAt) : IAggregateEvent;
+public record OrderShipped(Guid AggregateId, DateTime ShippedAt) : IAggregateEvent;
 
 // Repository appends events, never updates
 public class EventStore
 {
-    private readonly List<object> _events = new();
-    public void Append(object @event) => _events.Add(@event);
-    public IEnumerable<object> GetEvents(Guid aggregateId) => _events.Where(e => e.Matches(aggregateId));
+    private readonly List<IAggregateEvent> _events = new();
+    public void Append(IAggregateEvent @event) => _events.Add(@event);
+    public IEnumerable<IAggregateEvent> GetEvents(Guid aggregateId)
+        => _events.Where(e => e.AggregateId == aggregateId);
 }
 ```
 
@@ -149,7 +156,7 @@ public class EventStore
 
 **Question**: Compare choreography vs orchestration in the Saga Pattern.
 
-**Answer**: In choreography, each service publishes events and reacts to others' events — no central coordinator exists, which reduces coupling but makes failure handling harder to trace. In orchestration, a central coordinator (orchestrator) tells each service what to do and handles compensations explicitly, adding a single point of control and failure.
+**Answer**: In choreography, each service publishes events and reacts to others' events - no central coordinator exists, which reduces coupling but makes failure handling harder to trace. In orchestration, a central coordinator (orchestrator) tells each service what to do and handles compensations explicitly, adding a single point of control and failure.
 
 ```csharp
 // Orchestration Saga with a coordinator
@@ -188,7 +195,12 @@ public class StranglerMiddleware
     {
         if (_featureToggles.UseNewCheckout(context.Request.Path))
         {
-            await _httpClient.SendAsync(context.Request, "new-checkout-service");
+            var requestMessage = new HttpRequestMessage
+            {
+                Method = new HttpMethod(context.Request.Method),
+                RequestUri = new Uri($"https://new-checkout-service{context.Request.Path}{context.Request.QueryString}")
+            };
+            await _httpClient.SendAsync(requestMessage);
         }
         else
         {
@@ -208,12 +220,20 @@ public class StranglerMiddleware
 public class CircuitBreaker
 {
     private int _failureCount;
+    private readonly int _threshold = 5;
+    private readonly TimeSpan _openToHalfOpenTimeout = TimeSpan.FromSeconds(30);
     private CircuitState _state = CircuitState.Closed;
+    private DateTime _openedAt;
 
     public async Task<T> ExecuteAsync<T>(Func<Task<T>> action)
     {
         if (_state == CircuitState.Open)
-            throw new CircuitBreakerOpenException("Service unavailable");
+        {
+            if (DateTime.UtcNow - _openedAt >= _openToHalfOpenTimeout)
+                _state = CircuitState.HalfOpen;
+            else
+                throw new CircuitBreakerOpenException("Service unavailable");
+        }
 
         try
         {
@@ -225,7 +245,11 @@ public class CircuitBreaker
         catch
         {
             _failureCount++;
-            if (_failureCount >= _threshold) _state = CircuitState.Open;
+            if (_failureCount >= _threshold)
+            {
+                _state = CircuitState.Open;
+                _openedAt = DateTime.UtcNow;
+            }
             throw;
         }
     }
@@ -306,7 +330,7 @@ public class NotificationService : IIntegrationEventHandler<OrderPlacedEvent>
 
 **Question**: What is the difference between a Message Queue and an Event Bus?
 
-**Answer**: A Message Queue (e.g., RabbitMQ, SQS) uses point-to-point delivery — one message is consumed by one consumer, supporting work queues and competing consumers. An Event Bus (e.g., Kafka, Event Grid) uses pub/sub — one event can be consumed by multiple subscribers. Event Buses typically support longer retention and replay, while message queues emphasize guaranteed delivery and load leveling.
+**Answer**: A Message Queue (e.g., RabbitMQ, SQS) uses point-to-point delivery - one message is consumed by one consumer, supporting work queues and competing consumers. An Event Bus (e.g., Kafka, Event Grid) uses pub/sub - one event can be consumed by multiple subscribers. Event Buses typically support longer retention and replay, while message queues emphasize guaranteed delivery and load leveling.
 
 ---
 
@@ -340,7 +364,7 @@ Phase 2: Commit  └── Saga completes with failure
 
 **Question**: Compare Database per Service vs Shared Database.
 
-**Answer**: Database per Service gives each microservice its own database, enforcing bounded contexts and independent schema evolution, but adds complexity for cross-service queries. Shared Database provides simpler joins and transactions but creates tight coupling — a schema change in one service can break others, undermining microservice independence.
+**Answer**: Database per Service gives each microservice its own database, enforcing bounded contexts and independent schema evolution, but adds complexity for cross-service queries. Shared Database provides simpler joins and transactions but creates tight coupling - a schema change in one service can break others, undermining microservice independence.
 
 ---
 
@@ -422,8 +446,8 @@ span.SetAttribute("order.id", orderId);
 ```csharp
 // ASP.NET Core health checks
 builder.Services.AddHealthChecks()
-    .AddCheck("liveness", _ => HealthCheckResult.Healthy())
-    .AddDbContextCheck<AppDbContext>("readiness");
+    .AddCheck("liveness", _ => HealthCheckResult.Healthy(), tags: new[] { "live" })
+    .AddDbContextCheck<AppDbContext>("readiness", tags: new[] { "ready" });
 
 app.MapHealthChecks("/health/live", new() { Predicate = r => r.Tags.Contains("live") });
 app.MapHealthChecks("/health/ready", new() { Predicate = r => r.Tags.Contains("ready") });
@@ -508,15 +532,25 @@ public class BulkheadExecutor
 // Fixed window rate limiter middleware
 public class RateLimitingMiddleware
 {
-    private readonly ConcurrentDictionary<string, int> _counters = new();
+    private readonly ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _windows = new();
     private readonly int _limit = 100;
+    private readonly TimeSpan _windowDuration = TimeSpan.FromMinutes(1);
 
     public async Task InvokeAsync(HttpContext context)
     {
         var clientIp = context.Connection.RemoteIpAddress.ToString();
-        var count = _counters.AddOrUpdate(clientIp, 1, (_, c) => c + 1);
+        var now = DateTime.UtcNow;
 
-        if (count > _limit)
+        var window = _windows.AddOrUpdate(clientIp,
+            _ => (1, now),
+            (_, existing) =>
+            {
+                if (now - existing.WindowStart >= _windowDuration)
+                    return (1, now);
+                return (existing.Count + 1, existing.WindowStart);
+            });
+
+        if (window.Count > _limit)
         {
             context.Response.StatusCode = 429;
             await context.Response.WriteAsync("Rate limit exceeded");
@@ -543,7 +577,7 @@ public class ProductService
         var cached = await _cache.GetAsync<Product>($"product:{id}");
         if (cached is not null) return cached;
 
-        // Cache miss — load from DB
+        // Cache miss - load from DB
         var product = await _db.Products.FindAsync(id);
         if (product is null) return null;
 
@@ -599,7 +633,7 @@ Cache-Control: public, max-age=300, s-maxage=600
 **Answer**: Stateless services don't store session data between requests, making them horizontally scalable, resilient to failures, and simpler to deploy. Stateful services maintain in-memory state (e.g., WebSocket connections, shopping carts) and require session affinity, distributed caches, or external state stores. Prefer stateless by default; use stateful only when necessary.
 
 ```csharp
-// Stateless — any instance can handle any request
+// Stateless - any instance can handle any request
 public class StatelessPaymentService
 {
     public async Task<PaymentResult> ProcessAsync(PaymentRequest request)
@@ -608,7 +642,7 @@ public class StatelessPaymentService
     }
 }
 
-// Stateful — uses session affinity
+// Stateful - uses session affinity
 public class SessionCartService
 {
     public async Task AddToCartAsync(string sessionId, CartItem item)
@@ -624,7 +658,7 @@ public class SessionCartService
 
 **Question**: What are the Twelve-Factor App methodology principles?
 
-**Answer**: The Twelve-Factor App is a methodology for building SaaS applications: 1) Codebase — one codebase tracked in version control, 2) Dependencies — explicitly declare and isolate, 3) Config — store config in environment variables, 4) Backing Services — treat as attached resources, 5) Build, Release, Run — strictly separate stages, 6) Processes — execute as stateless processes, 7) Port Binding — export services via port binding, 8) Concurrency — scale out via process model, 9) Disposability — fast startup and graceful shutdown, 10) Dev/Prod Parity — keep environments similar, 11) Logs — treat as event streams, 12) Admin Processes — run as one-off processes.
+**Answer**: The Twelve-Factor App is a methodology for building SaaS applications: 1) Codebase - one codebase tracked in version control, 2) Dependencies - explicitly declare and isolate, 3) Config - store config in environment variables, 4) Backing Services - treat as attached resources, 5) Build, Release, Run - strictly separate stages, 6) Processes - execute as stateless processes, 7) Port Binding - export services via port binding, 8) Concurrency - scale out via process model, 9) Disposability - fast startup and graceful shutdown, 10) Dev/Prod Parity - keep environments similar, 11) Logs - treat as event streams, 12) Admin Processes - run as one-off processes.
 
 ```yaml
 # Twelve-Factor compliant configuration
@@ -645,7 +679,7 @@ spec:
 
 **Question**: What is Conway's Law and how does it affect architecture?
 
-**Answer**: Conway's Law states that organizations design systems that mirror their communication structures. If a company has three teams (frontend, backend, database), the resulting system will likely have three corresponding layers. This means architecture should align with team boundaries — cross-team communication overhead drives the need for well-defined service contracts and bounded contexts.
+**Answer**: Conway's Law states that organizations design systems that mirror their communication structures. If a company has three teams (frontend, backend, database), the resulting system will likely have three corresponding layers. This means architecture should align with team boundaries - cross-team communication overhead drives the need for well-defined service contracts and bounded contexts.
 
 ---
 
@@ -654,7 +688,7 @@ spec:
 **Answer**: A Modular Monolith is a single deployment unit with well-defined module boundaries, offering simpler deployment, testing, and data consistency while still enforcing separation of concerns. Microservices deploy each module independently, providing independent scaling and team autonomy but adding network overhead, distributed transaction complexity, and operational burden. Start with a modular monolith; extract microservices when needed.
 
 ```csharp
-// Modular Monolith — one solution with separate project modules
+// Modular Monolith - one solution with separate project modules
 // Modules/Orders/OrdersModule.cs
 public class OrdersModule : IModule
 {
@@ -705,7 +739,7 @@ namespace Catalog
 
 **Question**: What is Ubiquitous Language in DDD?
 
-**Answer**: Ubiquitous Language is a shared, rigorous language used by developers, domain experts, and stakeholders throughout the project — in code, conversations, documentation, and tests. It ensures that the code's model accurately reflects business concepts. For example, if the business says "Reserve Stock," the code should use `reserveStock`, not `inventoryLock`.
+**Answer**: Ubiquitous Language is a shared, rigorous language used by developers, domain experts, and stakeholders throughout the project - in code, conversations, documentation, and tests. It ensures that the code's model accurately reflects business concepts. For example, if the business says "Reserve Stock," the code should use `reserveStock`, not `inventoryLock`.
 
 ---
 
@@ -728,7 +762,7 @@ namespace Catalog
 // Core port
 public interface IOrderRepository
 {
-    Task<Order> GetByIdAsync(Guid id);
+    Task<Order?> GetByIdAsync(Guid id);
     Task SaveAsync(Order order);
 }
 
@@ -736,7 +770,7 @@ public interface IOrderRepository
 public class PostgresOrderRepository : IOrderRepository
 {
     private readonly AppDbContext _db;
-    public async Task<Order> GetByIdAsync(Guid id)
+    public async Task<Order?> GetByIdAsync(Guid id)
         => await _db.Orders.FindAsync(id);
 }
 ```
@@ -749,18 +783,18 @@ public class PostgresOrderRepository : IOrderRepository
 
 ```
 Onion Layers (innermost to outermost):
-1. Domain Model — Entities, Value Objects
-2. Domain Services — Business logic
-3. Application Services — Use cases, DTOs
-4. Infrastructure — DB, File System, APIs
-5. UI / Tests — Outer ring
+1. Domain Model - Entities, Value Objects
+2. Domain Services - Business logic
+3. Application Services - Use cases, DTOs
+4. Infrastructure - DB, File System, APIs
+5. UI / Tests - Outer ring
 ```
 
 ---
 
 **Question**: How do SOLID principles apply to software architecture?
 
-**Answer**: SOLID principles guide system-level design. Single Responsibility ensures each module has one reason to change. Open/Closed allows adding features via extension without modifying existing code. Liskov Substitution ensures service contracts are interchangable. Interface Segregation prevents fat service interfaces. Dependency Inversion keeps high-level policies independent of low-level details.
+**Answer**: SOLID principles guide system-level design. Single Responsibility ensures each module has one reason to change. Open/Closed allows adding features via extension without modifying existing code. Liskov Substitution ensures service contracts are interchangeable. Interface Segregation prevents fat service interfaces. Dependency Inversion keeps high-level policies independent of low-level details.
 
 ```csharp
 // Dependency Inversion at architectural level
@@ -785,13 +819,13 @@ public class PlaceOrderUseCase
 **Answer**: Inversion of Control (IoC) is a broad principle where the framework controls the flow of the program rather than the application code. Dependency Injection (DI) is a specific technique to achieve IoC: dependencies are provided (injected) into a class from the outside rather than created internally. IoC is the "what," DI is the "how."
 
 ```csharp
-// Without DI — class creates its own dependencies
+// Without DI - class creates its own dependencies
 public class OrderService
 {
     private readonly IOrderRepository _repo = new PostgresOrderRepository();
 }
 
-// With DI — dependencies injected
+// With DI - dependencies injected
 public class OrderService
 {
     private readonly IOrderRepository _repo;
@@ -827,7 +861,7 @@ public class ProductRepository : IProductRepository
 
 **Question**: What is the Unit of Work Pattern?
 
-**Answer**: The Unit of Work pattern maintains a list of objects affected by a business transaction and coordinates the writing out of changes. It ensures all changes are committed together (atomicity) or rolled back. In Entity Framework, `DbContext` is the Unit of Work — `SaveChangesAsync()` persists all tracked changes in a single transaction.
+**Answer**: The Unit of Work pattern maintains a list of objects affected by a business transaction and coordinates the writing out of changes. It ensures all changes are committed together (atomicity) or rolled back. In Entity Framework, `DbContext` is the Unit of Work - `SaveChangesAsync()` persists all tracked changes in a single transaction.
 
 ```csharp
 public class OrderService
@@ -876,7 +910,7 @@ public class PaymentGatewayFactory : IPaymentGatewayFactory
 
 **Question**: How does the Strategy Pattern improve architectural flexibility?
 
-**Answer**: The Strategy Pattern defines a family of interchangeable algorithms encapsulated behind a common interface. It allows selecting algorithms at runtime without changing the client code. In architecture, it's used for tax calculation, pricing rules, authentication providers, or data export formats — each strategy can be developed and tested independently.
+**Answer**: The Strategy Pattern defines a family of interchangeable algorithms encapsulated behind a common interface. It allows selecting algorithms at runtime without changing the client code. In architecture, it's used for tax calculation, pricing rules, authentication providers, or data export formats - each strategy can be developed and tested independently.
 
 ```csharp
 public interface ITaxCalculationStrategy
@@ -906,7 +940,7 @@ public class CheckoutService
 
 **Question**: What is the Observer Pattern and how is it used in distributed systems?
 
-**Answer**: The Observer Pattern defines a one-to-many dependency where when one object changes state, all dependents are notified automatically. In distributed systems, it's implemented via event buses, message queues, or pub/sub systems — services emit events and multiple consumers react independently without coupling to the producer.
+**Answer**: The Observer Pattern defines a one-to-many dependency where when one object changes state, all dependents are notified automatically. In distributed systems, it's implemented via event buses, message queues, or pub/sub systems - services emit events and multiple consumers react independently without coupling to the producer.
 
 ```csharp
 // In-process observer pattern (event-based)
@@ -971,7 +1005,7 @@ public class LoggingOrderService : IOrderService
 **Answer**: The Proxy Pattern provides a surrogate or placeholder for another object to control access to it. In distributed architecture, proxies handle lazy initialization, access control, remote communication (e.g., gRPC proxy), or caching. API Gateways and reverse proxies (e.g., Nginx, Envoy) are architectural-level implementations of this pattern.
 
 ```csharp
-// Virtual proxy — lazy loading of expensive resource
+// Virtual proxy - lazy loading of expensive resource
 public class LazyCustomerRepositoryProxy : ICustomerRepository
 {
     private ICustomerRepository? _realRepo;
@@ -1071,7 +1105,7 @@ spec:
 
 **Question**: What are the three pillars of observability?
 
-**Answer**: The three pillars are Logs (structured, searchable records of discrete events), Metrics (aggregated numerical data over time — latency, error rate, throughput), and Traces (end-to-end request paths across distributed services). Together they provide a complete picture: metrics alert you to problems, logs help you debug, and traces show you the path through services.
+**Answer**: The three pillars are Logs (structured, searchable records of discrete events), Metrics (aggregated numerical data over time - latency, error rate, throughput), and Traces (end-to-end request paths across distributed services). Together they provide a complete picture: metrics alert you to problems, logs help you debug, and traces show you the path through services.
 
 ```csharp
 // OpenTelemetry configuration covering all three pillars

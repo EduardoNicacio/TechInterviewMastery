@@ -2,7 +2,7 @@
 
 **Question**: What is the difference between INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, and CROSS JOIN?
 
-**Answer**: INNER JOIN returns only matching rows from both tables. LEFT JOIN returns all rows from the left table and matching rows from the right (NULL where no match). RIGHT JOIN is the opposite. FULL OUTER JOIN returns all rows from both tables with NULLs for non-matches. CROSS JOIN returns the Cartesian product (every combination of rows).
+**Answer**: INNER JOIN returns only matching rows from both tables. LEFT JOIN returns all rows from the left table and matching rows from the right (NULL where no match). RIGHT JOIN returns all rows from the right table and matching rows from the left (NULL where no match). FULL OUTER JOIN returns all rows from both tables with NULLs for non-matches. CROSS JOIN returns the Cartesian product (every combination of rows).
 
 ```sql
 -- INNER JOIN
@@ -52,7 +52,7 @@ CREATE NONCLUSTERED INDEX IX_Employees_Name ON Employees(Name);
 ```sql
 -- Good: queries filtering on DeptId or (DeptId, Status) can use this
 CREATE INDEX IX_Orders_DeptId_Status ON Orders(DeptId, Status);
--- Poor: filtering only on Status cannot use the index efficiently
+-- Poor: if most queries filter on DeptId, this index order is suboptimal
 CREATE INDEX IX_Orders_Status_DeptId ON Orders(Status, DeptId);
 ```
 
@@ -81,7 +81,7 @@ INCLUDE (CustomerName, TotalAmount);
 **Answer**: Look for operators with high estimated cost percentage, especially table/scans, key lookups, sorts, and spools. Identify missing index hints, operator cost imbalances (e.g., 90% on one node), and large row estimates vs actuals (cardinality estimation errors). Use SET SHOWPLAN_XML or the GUI plan viewer.
 
 ```sql
-SET STATISTICS IO ON; SET STATISTICS TIME ON;
+SET SHOWPLAN_XML ON;
 SELECT * FROM Orders WHERE OrderDate = '2024-01-01';
 ```
 
@@ -115,7 +115,7 @@ COMMIT;
 
 **Question**: What causes deadlocks and how do you detect/prevent them?
 
-**Answer**: Deadlocks occur when two transactions each hold locks the other needs, creating a circular wait. Detect them via SQL Server's system_health session or trace flag 1222. Prevent by accessing resources in a consistent order, keeping transactions short, using lower isolation levels, and considering indexed views.
+**Answer**: Deadlocks occur when two transactions each hold locks the other needs, creating a circular wait. Detect them via SQL Server's system_health session or trace flag 1222. Prevent by accessing resources in a consistent order, keeping transactions short, using lower isolation levels, and ensuring proper indexing.
 
 ```sql
 -- Enable deadlock graph in system_health (default trace)
@@ -233,7 +233,7 @@ FROM Orders;
 
 **Question**: What is the difference between Views and Materialized Views?
 
-**Answer**: A View is a virtual table (saved query) that runs each time it's queried, always showing current data with no storage overhead. A Materialized View (Indexed View in SQL Server) persists the result set physically on disk, providing faster reads but requiring maintenance and consuming storage.
+**Answer**: A View is a virtual table (saved query) that runs each time it's queried, always showing current data with no storage overhead. A Materialized View persists the result set physically on disk. In SQL Server, the equivalent feature is an Indexed View, though the two differ in refresh behavior and constraints.
 
 ```sql
 -- View
@@ -272,6 +272,7 @@ INSERT INTO AuditLog(TableName, Action, OldData) SELECT 'Employees', 'DELETE', d
 **Answer**: Cursors process rows one at a time in a loop, causing high overhead from round-trips and row-by-row operations. Avoid them in set-based SQL. Use them only when imperative row-by-row logic is unavoidable (e.g., complex calculations per row, calling external APIs). Prefer set-based operations, window functions, or recursive CTEs instead.
 
 ```sql
+DECLARE @Id INT;
 DECLARE cur CURSOR FOR SELECT Id FROM Orders WHERE Status = 'Pending';
 OPEN cur; FETCH NEXT FROM cur INTO @Id;
 WHILE @@FETCH_STATUS = 0 BEGIN
@@ -395,7 +396,7 @@ BACKUP LOG MyDB TO DISK = 'C:\Backup\MyDB_Log.trn';
 
 **Question**: What is the CAP theorem and how does it apply to databases?
 
-**Answer**: CAP theorem states a distributed data system can guarantee at most two of: Consistency (all nodes see the same data), Availability (every request gets a response), and Partition Tolerance (system works despite network splits). SQL databases typically favor CA or CP; NoSQL often favors AP.
+**Answer**: CAP theorem states a distributed data system can guarantee at most two of: Consistency (all nodes see the same data), Availability (every request gets a response), and Partition Tolerance (system works despite network splits). Single-node SQL databases sidestep CAP. In distributed configurations, SQL databases typically favor CP (consistency over availability during partitions), while many NoSQL systems favor AP (availability over consistency during partitions). True CA systems do not exist in a distributed context.
 
 ---
 
@@ -408,7 +409,7 @@ BACKUP LOG MyDB TO DISK = 'C:\Backup\MyDB_Log.trn';
 ZADD leaderboard 100 "user1" 200 "user2" 150 "user3"
 ZREVRANGE leaderboard 0 2 WITHSCORES
 # Cache with TTL
-SET session:abc123 "{userId: 42}" EX 3600
+SET session:abc123 '{"userId": 42}' EX 3600
 ```
 
 ---
@@ -439,7 +440,7 @@ OPTION (RECOMPILE, MAXDOP 1);
 
 **Question**: How do you optimize TempDB performance?
 
-**Answer**: Use multiple TempDB data files (equal size, one per CPU core up to 8), enable TF 1117 (auto-grow all files equally) and TF 1118 (uniform extent allocation). Place TempDB on fast SSDs. Minimize sorting/hashing operations by optimizing queries and indexes. Monitor PAGELATCH contention via sys.dm_os_wait_stats.
+**Answer**: Use multiple TempDB data files (equal size, one per CPU core up to 8). For SQL Server 2014 and earlier, enable TF 1117 (auto-grow all files equally) and TF 1118 (uniform extent allocation) - these became the default behavior in SQL Server 2016. Place TempDB on fast SSDs. Minimize sorting/hashing operations by optimizing queries and indexes. Monitor PAGELATCH contention via sys.dm_os_wait_stats.
 
 ---
 
@@ -469,7 +470,7 @@ SELECT Id, Name FROM Employees WHERE Id > 100 ORDER BY Id FETCH NEXT 20 ROWS ONL
 ```sql
 -- Full-Text Search
 SELECT * FROM Documents WHERE CONTAINS(Content, 'FORMSOF(INFLECTIONAL, run)');
--- LIkE (no index use with leading wildcard)
+-- LIKE (no index use with leading wildcard)
 SELECT * FROM Documents WHERE Content LIKE '%running%';
 ```
 
@@ -498,7 +499,8 @@ SELECT * FROM @xml.nodes('/root/customer') AS X(C);
 ```sql
 -- Shared schema approach with row-level security
 CREATE SECURITY POLICY TenantFilter
-ADD FILTER PREDICATE dbo.fn_TenantPredicate(TenantId) ON dbo.Orders;
+ADD FILTER PREDICATE dbo.fn_TenantPredicate(TenantId) ON dbo.Orders
+WITH (STATE = ON);
 ```
 
 ---
