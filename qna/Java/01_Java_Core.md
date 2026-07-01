@@ -1083,8 +1083,8 @@ module com.example.myapp {
 **Answer**: Use profilers (Async Profiler, JFR, VisualVM, YourKit) to identify CPU hotspots, memory leaks, and GC issues. Key diagnostics: `jstack` (thread dumps), `jmap` (heap dumps), `jstat` (GC stats), `jcmd` (comprehensive JVM diagnostics). Start with high-level application profiling, then drill into specific areas. Common optimizations: reduce object allocation (object pooling, primitives), tune GC (`-XX:+UseG1GC`, `-XX:MaxGCPauseMillis`), optimize data structures, use connection pooling, and apply caching.
 
 ```bash
-# JVM flags for diagnostics
-# -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xlog:gc*
+# JVM flags for diagnostics (Java 9+)
+# -Xlog:gc*               # unified logging (replaces PrintGCDetails, PrintGCTimeStamps)
 # -Xms4g -Xmx4g -XX:MetaspaceSize=256m
 # -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/path
 
